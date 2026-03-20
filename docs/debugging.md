@@ -20,6 +20,12 @@ It exists so an agent or reviewer can start the system, prepare data, run smoke 
 - `bash scripts/smoke.sh`
 - `bash scripts/validate.sh`
 
+## GitHub Loop
+
+- `.github/workflows/ci.yml` mirrors the local delivery gate on pushes and pull requests.
+- `.github/workflows/pr-review.yml` posts or updates a sticky pull request comment with changed files and current check status.
+- Local debugging still starts with `bash scripts/validate.sh`; GitHub Actions should confirm the same gate remotely.
+
 ## Common Failure Buckets
 
 ### Validation Failures

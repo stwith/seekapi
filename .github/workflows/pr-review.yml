@@ -1,0 +1,140 @@
+# Sticky pull request automation comment [AC3][AC4]
+name: PR Review Comment
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'pull_request_target' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request')
+
+    steps:
+      - name: Update sticky PR review comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = "<!-- seekapi-pr-review -->";
+
+            async function getTargetPullRequests() {
+              if (context.eventName === "pull_request_target") {
+                return [context.payload.pull_request];
+              }
+
+              const prs = context.payload.workflow_run.pull_requests ?? [];
+              return prs;
+            }
+
+            async function listCheckRuns(owner, repo, ref) {
+              const response = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref,
+                per_page: 100,
+              });
+
+              return response.data.check_runs
+                .filter((run) => run.name !== context.workflow)
+                .map((run) => {
+                  const conclusion = run.status === "completed"
+                    ? (run.conclusion ?? "completed")
+                    : run.status;
+                  return `- \`${run.name}\`: ${conclusion}`;
+                });
+            }
+
+            async function listChangedFiles(owner, repo, pull_number) {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner,
+                repo,
+                pull_number,
+                per_page: 100,
+              });
+
+              return files.map((file) =>
+                `- \`${file.filename}\` (${file.status}, +${file.additions}/-${file.deletions})`,
+              );
+            }
+
+            async function upsertComment(owner, repo, issue_number, body) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number,
+                per_page: 100,
+              });
+
+              const existing = comments.find((comment) =>
+                comment.user?.type === "Bot" && comment.body?.includes(marker),
+              );
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                });
+                return;
+              }
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
+
+            const pulls = await getTargetPullRequests();
+
+            if (pulls.length === 0) {
+              core.info("No pull requests associated with this event.");
+              return;
+            }
+
+            for (const pull of pulls) {
+              const owner = context.repo.owner;
+              const repo = context.repo.repo;
+              const changedFiles = await listChangedFiles(owner, repo, pull.number);
+              const checkRuns = await listCheckRuns(owner, repo, pull.head.sha);
+              const truncatedFiles = changedFiles.slice(0, 25);
+              const moreFiles = changedFiles.length - truncatedFiles.length;
+
+              const body = [
+                marker,
+                "## SeekAPI PR Automation",
+                "",
+                `PR #${pull.number} on \`${pull.head.ref}\` has been detected.`,
+                "",
+                "### Changed Files",
+                truncatedFiles.length > 0 ? truncatedFiles.join("\n") : "- No changed files reported by the GitHub API yet.",
+                moreFiles > 0 ? `- ...and ${moreFiles} more file(s)` : "",
+                "",
+                "### Check Status",
+                checkRuns.length > 0 ? checkRuns.join("\n") : "- No check runs reported yet. CI may still be queued.",
+                "",
+                "### Required Loop",
+                "- Keep work inside the active plan in `docs/plans/`.",
+                "- Run `bash scripts/validate.sh` locally before requesting merge.",
+                "- Use this PR to capture review feedback and follow-up fixes.",
+                "- Treat this comment as automation support, not final approval.",
+                "",
+                `[Open Checks](https://github.com/${owner}/${repo}/pull/${pull.number}/checks)`,
+              ].filter(Boolean).join("\n");
+
+              await upsertComment(owner, repo, pull.number, body);
+            }
