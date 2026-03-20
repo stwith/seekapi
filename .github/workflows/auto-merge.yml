@@ -4,6 +4,8 @@ name: Auto Merge
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review, converted_to_draft]
+  issue_comment:
+    types: [created, edited]
   workflow_run:
     workflows: ["CI", "AI PR Review", "PR Review Comment"]
     types: [completed]
@@ -11,6 +13,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: read
   checks: read
   actions: read
 
@@ -19,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'pull_request_target' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request) ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request')
 
     steps:
@@ -29,6 +33,10 @@ jobs:
             async function getPullRequests() {
               if (context.eventName === "pull_request_target") {
                 return [context.payload.pull_request];
+              }
+
+              if (context.eventName === "issue_comment") {
+                return [{ number: context.payload.issue.number }];
               }
 
               return context.payload.workflow_run.pull_requests ?? [];
