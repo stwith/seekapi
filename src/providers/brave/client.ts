@@ -4,9 +4,8 @@ import { ProviderError } from "../core/errors.js";
 const BRAVE_API_BASE = "https://api.search.brave.com/res/v1";
 
 /**
- * Brave Search HTTP client.
+ * Brave Search HTTP client. [AC4]
  * Encapsulates upstream HTTP calls and translates HTTP-level failures to typed ProviderErrors.
- * Full implementation comes in Task 6 — this is the structural skeleton.
  */
 export class BraveClient {
   async search(
