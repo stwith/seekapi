@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import { registerAuthPreHandler } from "../modules/auth/http/pre-handler.js";
 import { registerCapabilityRoutes } from "../modules/capabilities/http/routes.js";
 
 export interface AppOptions {
@@ -23,6 +24,9 @@ export async function buildApp(
   app.get("/v1/health", async (_req, reply) => {
     return reply.send({ status: "ok" });
   });
+
+  // Downstream API key authentication [AC2]
+  await registerAuthPreHandler(app);
 
   // Canonical search endpoints [AC3]
   await registerCapabilityRoutes(app);
