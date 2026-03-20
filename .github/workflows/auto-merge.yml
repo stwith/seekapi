@@ -45,6 +45,50 @@ jobs:
               return response.data.check_runs;
             }
 
+            async function latestCodexReviewStatus(owner, repo, issueNumber) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: issueNumber,
+                per_page: 100,
+              });
+
+              const matches = comments
+                .filter((comment) => comment.body?.includes("<!-- seekapi-codex-review -->"))
+                .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+
+              const latest = matches[0];
+              if (!latest) return "missing";
+
+              const match = latest.body.match(/STATUS:\s*(READY|BLOCKED)/);
+              return match?.[1] ?? "unknown";
+            }
+
+            async function unresolvedReviewThreadCount(owner, repo, pullNumber) {
+              const query = `
+                query($owner: String!, $repo: String!, $pullNumber: Int!) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pullNumber) {
+                      reviewThreads(first: 100) {
+                        nodes {
+                          isResolved
+                        }
+                      }
+                    }
+                  }
+                }
+              `;
+
+              const result = await github.graphql(query, {
+                owner,
+                repo,
+                pullNumber,
+              });
+
+              const nodes = result.repository.pullRequest.reviewThreads.nodes ?? [];
+              return nodes.filter((thread) => !thread.isResolved).length;
+            }
+
             function conclusionFor(runs, name) {
               const namedRuns = runs.filter((run) => run.name === name);
               if (namedRuns.length === 0) return "missing";
@@ -77,10 +121,15 @@ jobs:
               const statuses = Object.fromEntries(
                 requiredChecks.map((name) => [name, conclusionFor(checkRuns, name)]),
               );
+              const codexReviewStatus = await latestCodexReviewStatus(owner, repo, pr.number);
+              const unresolvedThreads = await unresolvedReviewThreadCount(owner, repo, pr.number);
 
               const allGreen = requiredChecks.every((name) => statuses[name] === "success");
-              if (!allGreen) {
-                core.info(`PR #${pr.number} not ready for auto-merge: ${JSON.stringify(statuses)}`);
+              if (!allGreen || codexReviewStatus !== "READY" || unresolvedThreads > 0) {
+                core.info(
+                  `PR #${pr.number} not ready for auto-merge: ` +
+                  JSON.stringify({ statuses, codexReviewStatus, unresolvedThreads }),
+                );
                 continue;
               }
 

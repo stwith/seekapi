@@ -63,6 +63,18 @@ This helper runs `bash scripts/validate.sh`, pushes the current branch, opens or
 
 The repository can auto-review and auto-merge labeled PRs, but proactive Codex review still requires a separate polling or webhook automation outside normal GitHub Actions.
 
+For the Claude repair loop, use the structured Codex review comment protocol. [AC3]
+
+- Codex reviewer should keep one PR comment marked `<!-- seekapi-codex-review -->`
+- That comment must include `STATUS: READY` or `STATUS: BLOCKED`
+- Claude should consume the latest blocked review with:
+
+```bash
+bash scripts/claude-fix-pr.sh <pr-number>
+```
+
+The helper prints the exact repair prompt Claude should follow for that PR.
+
 ## Architecture and Plans
 
 - [AGENTS.md](./AGENTS.md) - Agent entry point and rules

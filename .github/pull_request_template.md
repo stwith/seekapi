@@ -24,3 +24,9 @@
 - architecture or boundary changes:
 - failure paths covered:
 - docs/examples updated if behavior changed:
+
+## Codex Review Protocol
+
+- latest Codex review comment marker: `<!-- seekapi-codex-review -->`
+- latest Codex review status: `READY` / `BLOCKED`
+- unresolved `BLOCKING:` items:
