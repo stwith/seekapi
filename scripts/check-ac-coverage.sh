@@ -9,7 +9,12 @@ if [ ! -d docs/plans ]; then
   exit 0
 fi
 
-latest_plan="$(find docs/plans -maxdepth 1 -type f -name '*.md' ! -name 'TEMPLATE.md' | sort | tail -n 1)"
+latest_plan="$(
+  ls -t docs/plans/*.md 2>/dev/null \
+    | grep -v '/TEMPLATE\.md$' \
+    | head -n 1 \
+    || true
+)"
 
 if [ -z "${latest_plan:-}" ]; then
   echo "[check-ac-coverage] no active plan found, skipping"
@@ -25,7 +30,7 @@ fi
 
 search_targets=()
 
-for path in src tests scripts docs examples AGENTS.md README.md; do
+for path in .github src tests scripts docs examples AGENTS.md README.md "$latest_plan"; do
   if [ -e "$path" ]; then
     search_targets+=("$path")
   fi
@@ -37,7 +42,7 @@ if [ "${#search_targets[@]}" -eq 0 ]; then
 fi
 
 for ac in $acs; do
-  if ! rg -n "$ac" "${search_targets[@]}" >/dev/null 2>&1; then
+  if ! grep -R -n -- "$ac" "${search_targets[@]}" >/dev/null 2>&1; then
     echo "FAIL: missing coverage for $ac"
     echo "Action: add a test, smoke check, or validation artifact labeled $ac"
     exit 1

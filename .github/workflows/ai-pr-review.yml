@@ -1,0 +1,141 @@
+name: AI PR Review
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Generate or update AI review comment
+        uses: actions/github-script@v7
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_REVIEW_MODEL: ${{ vars.OPENAI_REVIEW_MODEL || 'gpt-4.1-mini' }}
+        with:
+          script: |
+            const marker = "<!-- seekapi-ai-review -->";
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull = context.payload.pull_request;
+
+            async function upsertComment(body) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: pull.number,
+                per_page: 100,
+              });
+
+              const existing = comments.find((comment) =>
+                comment.user?.type === "Bot" && comment.body?.includes(marker),
+              );
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                });
+                return;
+              }
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull.number,
+                body,
+              });
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pull.number,
+              per_page: 100,
+            });
+
+            const changedFiles = files.slice(0, 25).map((file) => {
+              const patch = (file.patch ?? "")
+                .slice(0, 2000)
+                .replace(/\u0000/g, "");
+              return [
+                `File: ${file.filename}`,
+                `Status: ${file.status}`,
+                `Additions: ${file.additions}, Deletions: ${file.deletions}`,
+                patch ? `Patch:\n${patch}` : "Patch: unavailable",
+              ].join("\n");
+            }).join("\n\n---\n\n");
+
+            if (!process.env.OPENAI_API_KEY) {
+              await upsertComment([
+                marker,
+                "## SeekAPI AI Review",
+                "",
+                "AI review is configured but skipped because `OPENAI_API_KEY` is not set in repository Actions secrets.",
+                "",
+                "### Enable It",
+                "1. Go to `Settings` -> `Secrets and variables` -> `Actions`.",
+                "2. Add repository secret `OPENAI_API_KEY`.",
+                "3. Optional: add repository variable `OPENAI_REVIEW_MODEL` to override the default model.",
+              ].join("\n"));
+              return;
+            }
+
+            const prompt = [
+              "You are reviewing a pull request for SeekAPI.",
+              "Focus on bugs, risks, boundary violations, behavioral regressions, and missing tests.",
+              "Prefer high-signal findings. If there are no findings, say so clearly.",
+              "Keep the response concise.",
+              "",
+              `PR Title: ${pull.title}`,
+              `PR Body:\n${pull.body ?? "(none)"}`,
+              "",
+              "Changed files and partial diffs:",
+              changedFiles || "(no changed files available)",
+            ].join("\n");
+
+            const response = await fetch("https://api.openai.com/v1/responses", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: process.env.OPENAI_REVIEW_MODEL,
+                input: prompt,
+              }),
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              await upsertComment([
+                marker,
+                "## SeekAPI AI Review",
+                "",
+                `AI review request failed with status ${response.status}.`,
+                "",
+                "```text",
+                errorText.slice(0, 3000),
+                "```",
+              ].join("\n"));
+              return;
+            }
+
+            const payload = await response.json();
+            const reviewText = payload.output_text ?? "AI review completed, but no text output was returned.";
+
+            await upsertComment([
+              marker,
+              "## SeekAPI AI Review",
+              "",
+              reviewText.trim(),
+            ].join("\n"));
