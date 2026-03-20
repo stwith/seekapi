@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import { registerCapabilityRoutes } from "../modules/capabilities/http/routes.js";
 
 export interface AppOptions {
   logger?: boolean | object;
@@ -22,6 +23,9 @@ export async function buildApp(
   app.get("/v1/health", async (_req, reply) => {
     return reply.send({ status: "ok" });
   });
+
+  // Canonical search endpoints [AC3]
+  await registerCapabilityRoutes(app);
 
   return app;
 }
