@@ -3,7 +3,7 @@ import { BraveAdapter } from "../../src/providers/brave/adapter.js";
 import { BraveClient } from "../../src/providers/brave/client.js";
 import { ProviderError } from "../../src/providers/core/errors.js";
 import { toProviderParams, toCanonicalItems } from "../../src/providers/brave/mapper.js";
-import type { CanonicalSearchRequest } from "../../src/providers/core/types.js";
+import type { Capability, CanonicalSearchRequest } from "../../src/providers/core/types.js";
 import type { BraveSearchResponse } from "../../src/providers/brave/schemas.js";
 
 // AC2: adapter boundary validation
@@ -194,5 +194,110 @@ describe("Brave mapper", () => {
     expect(toCanonicalItems("search.web", response)).toEqual([]);
     expect(toCanonicalItems("search.news", response)).toEqual([]);
     expect(toCanonicalItems("search.images", response)).toEqual([]);
+  });
+});
+
+// AC4: Brave BYOK exercised through canonical routes
+describe("BraveAdapter execute integration", () => {
+  it("returns canonical response for a web search via mocked fetch", async () => {
+    const originalFetch = globalThis.fetch;
+    const mockResponse: BraveSearchResponse = {
+      query: { original: "hello" },
+      web: {
+        results: [
+          { title: "Hello World", url: "https://example.com", description: "A greeting", page_age: "2024-06-01" },
+        ],
+      },
+    };
+    globalThis.fetch = () =>
+      Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }));
+
+    try {
+      const adapter = new BraveAdapter();
+      const result = await adapter.execute(
+        { capability: "search.web", query: "hello" },
+        { credential: "test-key", requestId: "req-001" },
+      );
+
+      expect(result.requestId).toBe("req-001");
+      expect(result.provider).toBe("brave");
+      expect(result.capability).toBe("search.web");
+      expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.title).toBe("Hello World");
+      expect(result.items[0]?.sourceType).toBe("web");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("throws for unsupported capability", async () => {
+    const adapter = new BraveAdapter();
+    await expect(
+      adapter.execute(
+        { capability: "search.answer" as Capability, query: "q" },
+        { credential: "key", requestId: "req-x" },
+      ),
+    ).rejects.toThrow("does not support capability");
+  });
+});
+
+describe("BraveClient HTTP status classification", () => {
+  function mockFetchStatus(status: number): () => void {
+    const original = globalThis.fetch;
+    globalThis.fetch = () =>
+      Promise.resolve(new Response("error", { status }));
+    return () => { globalThis.fetch = original; };
+  }
+
+  it("classifies 401 as bad_credential", async () => {
+    const restore = mockFetchStatus(401);
+    try {
+      const client = new BraveClient();
+      await expect(client.search("web/search", { q: "t" }, "k")).rejects.toThrow(ProviderError);
+      try { await client.search("web/search", { q: "t" }, "k"); } catch (err) {
+        expect((err as ProviderError).category).toBe("bad_credential");
+        expect((err as ProviderError).retryable).toBe(false);
+      }
+    } finally { restore(); }
+  });
+
+  it("classifies 403 as bad_credential", async () => {
+    const restore = mockFetchStatus(403);
+    try {
+      try { await new BraveClient().search("web/search", { q: "t" }, "k"); } catch (err) {
+        expect((err as ProviderError).category).toBe("bad_credential");
+      }
+    } finally { restore(); }
+  });
+
+  it("classifies 429 as rate_limited", async () => {
+    const restore = mockFetchStatus(429);
+    try {
+      try { await new BraveClient().search("web/search", { q: "t" }, "k"); } catch (err) {
+        expect((err as ProviderError).category).toBe("rate_limited");
+        expect((err as ProviderError).retryable).toBe(true);
+      }
+    } finally { restore(); }
+  });
+
+  it("classifies 500 as upstream_5xx", async () => {
+    const restore = mockFetchStatus(500);
+    try {
+      try { await new BraveClient().search("web/search", { q: "t" }, "k"); } catch (err) {
+        expect((err as ProviderError).category).toBe("upstream_5xx");
+        expect((err as ProviderError).retryable).toBe(true);
+      }
+    } finally { restore(); }
+  });
+
+  it("classifies 502 as upstream_5xx", async () => {
+    const restore = mockFetchStatus(502);
+    try {
+      try { await new BraveClient().search("web/search", { q: "t" }, "k"); } catch (err) {
+        expect((err as ProviderError).category).toBe("upstream_5xx");
+        expect((err as ProviderError).statusCode).toBe(502);
+      }
+    } finally { restore(); }
   });
 });

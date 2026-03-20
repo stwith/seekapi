@@ -34,7 +34,7 @@ export async function registerCapabilityRoutes(
         });
       }
 
-      const result = searchService.execute(capability, parsed.data, requestId);
+      const result = await searchService.execute(capability, parsed.data, requestId);
 
       return reply.send({
         request_id: result.requestId,
