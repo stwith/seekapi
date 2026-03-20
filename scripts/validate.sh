@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Delivery gate script [AC5]
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,17 +14,17 @@ run_if_present() {
   return 1
 }
 
-if command -v pnpm >/dev/null 2>&1 && [ -f package.json ]; then
-  echo "[validate] pnpm lint"
-  pnpm lint
-  echo "[validate] pnpm typecheck"
-  pnpm typecheck
-  echo "[validate] pnpm test"
-  pnpm test
-  echo "[validate] pnpm build"
-  pnpm build
+if [ -f package.json ] && [ -d node_modules ]; then
+  echo "[validate] npm run lint"
+  npm run lint
+  echo "[validate] npm run typecheck"
+  npm run typecheck
+  echo "[validate] npm test"
+  npm test
+  echo "[validate] npm run build"
+  npm run build
 else
-  echo "[validate] package manager or package.json missing, skipping lint/typecheck/test/build"
+  echo "[validate] package.json or node_modules missing, skipping lint/typecheck/test/build"
 fi
 
 echo "[validate] architecture checks"
