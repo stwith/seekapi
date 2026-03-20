@@ -124,6 +124,10 @@ jobs:
               if (pr.base.ref !== "main") continue;
               if (pr.draft) continue;
               if (!labels.has("automerge")) continue;
+              if (pr.mergeStateStatus !== "CLEAN") {
+                core.info(`PR #${pr.number} not mergeable yet: mergeStateStatus=${pr.mergeStateStatus}`);
+                continue;
+              }
 
               const checkRuns = await listCheckRuns(owner, repo, pr.head.sha);
               const statuses = Object.fromEntries(
@@ -141,12 +145,20 @@ jobs:
                 continue;
               }
 
-              await github.rest.pulls.merge({
+              const mergeResponse = await github.rest.pulls.merge({
                 owner,
                 repo,
                 pull_number: pr.number,
                 merge_method: "squash",
               });
+
+              if (!mergeResponse.data.merged) {
+                core.info(
+                  `PR #${pr.number} merge was not completed: ` +
+                  `${mergeResponse.data.message ?? "no message returned"}`,
+                );
+                continue;
+              }
 
               if (pr.head.repo.full_name === `${owner}/${repo}`) {
                 await github.rest.git.deleteRef({
