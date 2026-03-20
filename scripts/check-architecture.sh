@@ -16,7 +16,7 @@ if rg -n 'from .*(repo|repository)|require\(.*(repo|repository).*\)' src/modules
   exit 1
 fi
 
-if rg -n 'FastifyReply|Response|res\.' src/modules/*/service 2>/dev/null; then
+if rg -n 'FastifyReply|\bResponse\b|res\.' src/modules/*/service 2>/dev/null; then
   echo "FAIL: service layer appears to depend on HTTP response objects"
   echo "Action: return domain results from services and shape HTTP responses in the transport layer"
   exit 1

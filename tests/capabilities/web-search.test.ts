@@ -1,4 +1,4 @@
-import { describe, test, expect, vi, beforeEach } from "vitest";
+import { describe, test, expect, beforeEach } from "vitest";
 import { buildApp } from "../../src/app/build-app.js";
 import type { FastifyInstance } from "fastify";
 
@@ -75,6 +75,16 @@ describe("POST /v1/search/web", () => {
 
     const body = res.json();
     expect(res.headers["x-request-id"]).toBe(body.request_id);
+  });
+
+  test("unknown top-level fields are rejected with 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/search/web",
+      payload: { query: "test", brave_mode: "deep" },
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 
   test("delegates to search service with search.web capability", async () => {
