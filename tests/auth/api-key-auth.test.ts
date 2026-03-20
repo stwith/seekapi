@@ -71,6 +71,37 @@ describe("API key authentication", () => {
     expect(res.statusCode).toBe(200);
   });
 
+  test("health endpoint with query string bypasses auth", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/health?x=1",
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  test("lowercase bearer scheme is accepted (RFC 7235)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/search/web",
+      payload: { query: "hello" },
+      headers: { authorization: `bearer ${getTestApiKey()}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  test("mixed-case bearer scheme is accepted", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/search/web",
+      payload: { query: "hello" },
+      headers: { authorization: `BEARER ${getTestApiKey()}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
   test("valid API key attaches project context to request", async () => {
     const res = await app.inject({
       method: "POST",
@@ -80,7 +111,6 @@ describe("API key authentication", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    // The response should include provider info derived from project context
     const body = res.json();
     expect(body).toHaveProperty("provider");
   });

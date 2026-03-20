@@ -24,17 +24,17 @@ export async function registerAuthPreHandler(
   app.addHook(
     "preHandler",
     async (req: FastifyRequest, reply: FastifyReply) => {
-      if (PUBLIC_PATHS.has(req.url)) return;
+      if (PUBLIC_PATHS.has(req.routeOptions.url ?? req.url)) return;
 
       const header = req.headers.authorization;
-      if (!header || !header.startsWith("Bearer ")) {
+      if (!header || !header.toLowerCase().startsWith("bearer ")) {
         return reply.status(401).send({
           error: "UNAUTHORIZED",
           message: "Missing or malformed Authorization header",
         });
       }
 
-      const token = header.slice("Bearer ".length);
+      const token = header.slice("bearer ".length);
       const project = authService.authenticate(token);
       if (!project) {
         return reply.status(401).send({
