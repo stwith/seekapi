@@ -9,7 +9,12 @@ if [ ! -d docs/plans ]; then
   exit 0
 fi
 
-latest_plan="$(find docs/plans -maxdepth 1 -type f -name '*.md' ! -name 'TEMPLATE.md' | sort | tail -n 1)"
+latest_plan="$(
+  ls -t docs/plans/*.md 2>/dev/null \
+    | grep -v '/TEMPLATE\.md$' \
+    | head -n 1 \
+    || true
+)"
 
 if [ -z "${latest_plan:-}" ]; then
   echo "[check-ac-coverage] no active plan found, skipping"

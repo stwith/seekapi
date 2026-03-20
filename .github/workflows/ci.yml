@@ -1,0 +1,47 @@
+# GitHub delivery gate workflow [AC1][AC2]
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+        if: ${{ hashFiles('package-lock.json') != '' }}
+
+      - name: Set up Node.js 22 without cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+        if: ${{ hashFiles('package-lock.json') == '' }}
+
+      - name: Install dependencies with npm ci
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        run: npm ci
+
+      - name: Install dependencies with npm install
+        if: ${{ hashFiles('package-lock.json') == '' && hashFiles('package.json') != '' }}
+        run: npm install
+
+      - name: Run repository delivery gate
+        run: bash scripts/validate.sh
