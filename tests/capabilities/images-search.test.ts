@@ -2,6 +2,8 @@ import { describe, test, expect, beforeEach } from "vitest";
 import { buildApp } from "../../src/app/build-app.js";
 import type { FastifyInstance } from "fastify";
 
+const AUTH_HEADER = { authorization: "Bearer sk_test_seekapi_demo_key_001" };
+
 describe("POST /v1/search/images", () => {
   let app: FastifyInstance;
 
@@ -15,6 +17,7 @@ describe("POST /v1/search/images", () => {
       method: "POST",
       url: "/v1/search/images",
       payload: { query: "cute cats" },
+      headers: AUTH_HEADER,
     });
 
     expect(res.statusCode).toBe(200);
@@ -30,6 +33,7 @@ describe("POST /v1/search/images", () => {
       method: "POST",
       url: "/v1/search/images",
       payload: {},
+      headers: AUTH_HEADER,
     });
 
     expect(res.statusCode).toBe(400);
@@ -40,6 +44,7 @@ describe("POST /v1/search/images", () => {
       method: "POST",
       url: "/v1/search/images",
       payload: { query: "landscapes" },
+      headers: AUTH_HEADER,
     });
 
     expect(res.headers["x-request-id"]).toBeDefined();
@@ -50,6 +55,7 @@ describe("POST /v1/search/images", () => {
       method: "POST",
       url: "/v1/search/images",
       payload: { query: "nature photos" },
+      headers: AUTH_HEADER,
     });
 
     expect(res.statusCode).toBe(200);

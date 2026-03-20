@@ -2,6 +2,8 @@ import { describe, test, expect, beforeEach } from "vitest";
 import { buildApp } from "../../src/app/build-app.js";
 import type { FastifyInstance } from "fastify";
 
+const AUTH_HEADER = { authorization: "Bearer sk_test_seekapi_demo_key_001" };
+
 describe("POST /v1/search/web", () => {
   let app: FastifyInstance;
 
@@ -15,6 +17,7 @@ describe("POST /v1/search/web", () => {
       method: "POST",
       url: "/v1/search/web",
       payload: { query: "typescript fastify" },
+      headers: AUTH_HEADER,
     });
 
     expect(res.statusCode).toBe(200);
@@ -30,6 +33,7 @@ describe("POST /v1/search/web", () => {
       method: "POST",
       url: "/v1/search/web",
       payload: {},
+      headers: AUTH_HEADER,
     });
 
     expect(res.statusCode).toBe(400);
@@ -40,6 +44,7 @@ describe("POST /v1/search/web", () => {
       method: "POST",
       url: "/v1/search/web",
       payload: { query: "" },
+      headers: AUTH_HEADER,
     });
 
     expect(res.statusCode).toBe(400);
@@ -50,6 +55,7 @@ describe("POST /v1/search/web", () => {
       method: "POST",
       url: "/v1/search/web",
       payload: { query: "test", time_range: "century" },
+      headers: AUTH_HEADER,
     });
 
     expect(res.statusCode).toBe(400);
@@ -60,6 +66,7 @@ describe("POST /v1/search/web", () => {
       method: "POST",
       url: "/v1/search/web",
       payload: { query: "hello" },
+      headers: AUTH_HEADER,
     });
 
     expect(res.headers["x-request-id"]).toBeDefined();
@@ -71,6 +78,7 @@ describe("POST /v1/search/web", () => {
       method: "POST",
       url: "/v1/search/web",
       payload: { query: "hello" },
+      headers: AUTH_HEADER,
     });
 
     const body = res.json();
@@ -82,6 +90,7 @@ describe("POST /v1/search/web", () => {
       method: "POST",
       url: "/v1/search/web",
       payload: { query: "test", brave_mode: "deep" },
+      headers: AUTH_HEADER,
     });
 
     expect(res.statusCode).toBe(400);
@@ -92,6 +101,7 @@ describe("POST /v1/search/web", () => {
       method: "POST",
       url: "/v1/search/web",
       payload: { query: "test query", max_results: 5 },
+      headers: AUTH_HEADER,
     });
 
     expect(res.statusCode).toBe(200);

@@ -1,10 +1,6 @@
 /**
- * Auth module — downstream API key authentication and request context.
- * Implementation comes in Task 4.
+ * Auth module — downstream API key authentication and request context. [AC2]
  */
 
-export function createAuthModule() {
-  return {
-    name: "auth" as const,
-  };
-}
+export { registerAuthPreHandler } from "./http/pre-handler.js";
+export { AuthService } from "./service/auth-service.js";
