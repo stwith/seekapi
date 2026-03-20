@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { BraveAdapter } from "../../src/providers/brave/adapter.js";
+import { BraveClient } from "../../src/providers/brave/client.js";
+import { ProviderError } from "../../src/providers/core/errors.js";
 import { toProviderParams, toCanonicalItems } from "../../src/providers/brave/mapper.js";
 import type { CanonicalSearchRequest } from "../../src/providers/core/types.js";
 import type { BraveSearchResponse } from "../../src/providers/brave/schemas.js";
@@ -28,6 +30,78 @@ describe("BraveAdapter", () => {
     await expect(adapter.validateCredential("")).rejects.toThrow("non-empty string");
     await expect(adapter.validateCredential(123)).rejects.toThrow("non-empty string");
     await expect(adapter.validateCredential(null)).rejects.toThrow("non-empty string");
+  });
+
+  it("healthCheck returns placeholder status without calling upstream", async () => {
+    const adapter = new BraveAdapter();
+    const result = await adapter.healthCheck({});
+
+    expect(result.provider).toBe("brave");
+    expect(result.status).toBe("healthy");
+    expect(result.checkedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("BraveClient error wrapping", () => {
+  it("wraps network TypeError as timeout ProviderError", async () => {
+    const client = new BraveClient();
+    // Mock fetch to throw a network error (TypeError is what fetch throws for DNS/connection failures)
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () => Promise.reject(new TypeError("fetch failed"));
+    try {
+      await expect(
+        client.search("web/search", { q: "test" }, "key"),
+      ).rejects.toThrow(ProviderError);
+
+      try {
+        await client.search("web/search", { q: "test" }, "key");
+      } catch (err) {
+        expect(err).toBeInstanceOf(ProviderError);
+        const pe = err as ProviderError;
+        expect(pe.category).toBe("timeout");
+        expect(pe.provider).toBe("brave");
+        expect(pe.retryable).toBe(true);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("wraps AbortError as timeout ProviderError", async () => {
+    const client = new BraveClient();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () =>
+      Promise.reject(new DOMException("The operation was aborted", "AbortError"));
+    try {
+      try {
+        await client.search("web/search", { q: "test" }, "key");
+      } catch (err) {
+        expect(err).toBeInstanceOf(ProviderError);
+        const pe = err as ProviderError;
+        expect(pe.category).toBe("timeout");
+        expect(pe.retryable).toBe(true);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("wraps unknown thrown value as unknown ProviderError", async () => {
+    const client = new BraveClient();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () => Promise.reject("string error");
+    try {
+      try {
+        await client.search("web/search", { q: "test" }, "key");
+      } catch (err) {
+        expect(err).toBeInstanceOf(ProviderError);
+        const pe = err as ProviderError;
+        expect(pe.category).toBe("unknown");
+        expect(pe.retryable).toBe(false);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 

@@ -22,14 +22,24 @@ export class BraveClient {
       }
     }
 
-    const res = await fetch(url.toString(), {
-      headers: {
-        Accept: "application/json",
-        "Accept-Encoding": "gzip",
-        "X-Subscription-Token": apiKey,
-      },
-      signal,
-    });
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), {
+        headers: {
+          Accept: "application/json",
+          "Accept-Encoding": "gzip",
+          "X-Subscription-Token": apiKey,
+        },
+        signal,
+      });
+    } catch (err) {
+      throw new ProviderError({
+        message: `Brave API network failure: ${err instanceof Error ? err.message : String(err)}`,
+        category: categorizeNetworkError(err),
+        provider: "brave",
+        cause: err,
+      });
+    }
 
     if (!res.ok) {
       throw new ProviderError({
@@ -50,5 +60,11 @@ function categorizeStatus(
   if (status === 401 || status === 403) return "bad_credential";
   if (status === 429) return "rate_limited";
   if (status >= 500) return "upstream_5xx";
+  return "unknown";
+}
+
+function categorizeNetworkError(err: unknown): "timeout" | "unknown" {
+  if (err instanceof DOMException && err.name === "AbortError") return "timeout";
+  if (err instanceof TypeError) return "timeout"; // fetch network failures surface as TypeError
   return "unknown";
 }
