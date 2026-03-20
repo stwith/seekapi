@@ -1,1 +1,13 @@
-* @stwith
+/AGENTS.md @stwith
+/README.md @stwith
+/.github/ @stwith
+/docs/ @stwith
+/examples/ @stwith
+/scripts/ @stwith
+/src/ @stwith
+/tests/ @stwith
+/package.json @stwith
+/package-lock.json @stwith
+/tsconfig.json @stwith
+/.env.example @stwith
+/.gitignore @stwith
