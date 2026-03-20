@@ -77,8 +77,8 @@ export class BraveAdapter implements ProviderAdapter {
   }
 
   /**
-   * Health check placeholder — returns unknown status until Task 9
-   * wires real health probes. Does NOT call the upstream API to avoid
+   * Health check placeholder — returns healthy until Task 9 wires
+   * real health probes. Does NOT call the upstream API to avoid
    * consuming provider quota during skeleton phase.
    */
   async healthCheck(_ctx: ProviderHealthContext): Promise<ProviderHealthStatus> {
