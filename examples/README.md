@@ -2,7 +2,7 @@
 
 This directory should contain canonical integration examples for clients.
 
-Planned examples:
+Planned examples (validates AC3 canonical contract and AC4 Brave BYOK):
 
 - canonical web search request
 - canonical news search request
