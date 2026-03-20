@@ -12,7 +12,7 @@
     "start": "node dist/app/server.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src",
+    "lint": "eslint src tests",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
