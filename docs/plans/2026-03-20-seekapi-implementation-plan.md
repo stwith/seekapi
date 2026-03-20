@@ -10,8 +10,8 @@
 
 ## Preconditions
 
-- Repository is currently empty.
-- Start by creating the project scaffold and documentation-driven module layout.
+- Repository currently contains the agent entry docs, plans, examples scaffolding, and validation scripts.
+- Start by extending this baseline with the project scaffold and documentation-driven module layout.
 - Use the design document at `/Users/cjs/Codes/seekapi/docs/plans/2026-03-20-seekapi-design.md` as the architecture source of truth.
 - Before implementation, read `/Users/cjs/Codes/seekapi/AGENTS.md`, `/Users/cjs/Codes/seekapi/docs/product.md`, and `/Users/cjs/Codes/seekapi/docs/architecture.md`.
 - Do not implement plan-external work without updating the active plan.
