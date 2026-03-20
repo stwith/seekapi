@@ -30,7 +30,7 @@ fi
 
 search_targets=()
 
-for path in src tests scripts docs examples AGENTS.md README.md; do
+for path in .github src tests scripts docs examples AGENTS.md README.md "$latest_plan"; do
   if [ -e "$path" ]; then
     search_targets+=("$path")
   fi
@@ -42,7 +42,7 @@ if [ "${#search_targets[@]}" -eq 0 ]; then
 fi
 
 for ac in $acs; do
-  if ! rg -n "$ac" "${search_targets[@]}" >/dev/null 2>&1; then
+  if ! grep -R -n -- "$ac" "${search_targets[@]}" >/dev/null 2>&1; then
     echo "FAIL: missing coverage for $ac"
     echo "Action: add a test, smoke check, or validation artifact labeled $ac"
     exit 1
