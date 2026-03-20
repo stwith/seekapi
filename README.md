@@ -10,32 +10,28 @@ SeekAPI exposes canonical search endpoints (`/v1/search/web`, `/v1/search/news`,
 # Install dependencies
 npm install
 
-# Copy environment template
-cp .env.example .env
-# Edit .env with your database, Redis, and encryption key values
-
-# Run database migrations
-npm run db:migrate
-
-# Seed demo data (project, API key, provider credential)
-bash scripts/seed-demo-data.sh
+# Run tests and type-check
+npm test
+npm run typecheck
 
 # Start in development mode
 npm run dev
 ```
 
+> Database migrations (`npm run db:migrate`) and demo data seeding (`bash scripts/seed-demo-data.sh`) require PostgreSQL and Redis and will be available after Task 5.
+
 ## Scripts
 
-| Command            | Description                        |
-| ------------------ | ---------------------------------- |
-| `npm run dev`      | Start with hot reload (tsx watch)  |
-| `npm run build`    | Compile TypeScript                 |
-| `npm start`        | Run compiled output                |
-| `npm test`         | Run tests (vitest)                 |
-| `npm run lint`     | Lint source and tests              |
-| `npm run typecheck`| Type-check without emitting        |
-| `npm run db:generate` | Generate Drizzle migrations     |
-| `npm run db:migrate`  | Apply Drizzle migrations        |
+| Command              | Description                        |
+| -------------------- | ---------------------------------- |
+| `npm run dev`        | Start with hot reload (tsx watch)  |
+| `npm run build`      | Compile TypeScript                 |
+| `npm start`          | Run compiled output                |
+| `npm test`           | Run tests (vitest)                 |
+| `npm run lint`       | Lint source                        |
+| `npm run typecheck`  | Type-check without emitting        |
+| `npm run db:generate`| Generate Drizzle migrations (requires DB schema, Task 5+) |
+| `npm run db:migrate` | Apply Drizzle migrations (requires DB schema, Task 5+)    |
 
 ## Validation
 
