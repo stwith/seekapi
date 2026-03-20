@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Capability } from "../../../providers/core/types.js";
 import { searchRequestSchema } from "./schemas.js";
-import { SearchService } from "../service/search-service.js";
+import type { SearchService } from "../service/search-service.js";
 import { generateRequestId } from "../../../lib/request-id.js";
 
 const ROUTE_CAPABILITY_MAP: Record<string, Capability> = {
@@ -11,15 +11,15 @@ const ROUTE_CAPABILITY_MAP: Record<string, Capability> = {
 };
 
 /**
- * Register canonical search endpoints on the Fastify instance. [AC3]
+ * Register canonical search endpoints on the Fastify instance. [AC3][AC4]
  * Each route validates the request, derives the capability from the path,
- * delegates to the search service, and returns a normalized response.
+ * delegates to the search service with the authenticated project context,
+ * and returns a normalized response.
  */
 export async function registerCapabilityRoutes(
   app: FastifyInstance,
+  searchService: SearchService,
 ): Promise<void> {
-  const searchService = new SearchService();
-
   for (const [path, capability] of Object.entries(ROUTE_CAPABILITY_MAP)) {
     app.post(path, async (req, reply) => {
       const requestId = generateRequestId();
@@ -34,7 +34,13 @@ export async function registerCapabilityRoutes(
         });
       }
 
-      const result = await searchService.execute(capability, parsed.data, requestId);
+      const projectId = req.projectContext?.projectId;
+      const result = await searchService.execute(
+        capability,
+        parsed.data,
+        requestId,
+        projectId,
+      );
 
       return reply.send({
         request_id: result.requestId,

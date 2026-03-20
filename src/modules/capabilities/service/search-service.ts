@@ -37,9 +37,13 @@ export class SearchService {
     const providerId = body.provider ?? this.defaultProvider(capability);
     const adapter = this.deps.registry.getOrThrow(providerId);
 
-    const credential = projectId
-      ? await this.deps.resolveCredential(projectId, providerId)
-      : "";
+    if (!projectId) {
+      throw new Error(
+        "projectId is required when SearchService is wired with provider deps",
+      );
+    }
+
+    const credential = await this.deps.resolveCredential(projectId, providerId);
 
     const req: CanonicalSearchRequest = {
       capability,
