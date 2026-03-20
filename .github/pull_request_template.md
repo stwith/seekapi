@@ -14,6 +14,11 @@
 - [ ] targeted tests
 - [ ] smoke path checked when relevant
 
+## Automation
+
+- [ ] `task` label applied
+- [ ] `automerge` label applied only if this PR is safe for automatic squash merge
+
 ## Review Notes
 
 - architecture or boundary changes:

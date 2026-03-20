@@ -45,6 +45,24 @@ This runs lint, typecheck, tests, build, architecture checks, AC coverage checks
 
 AI pull request review is optional and can be enabled by adding the `OPENAI_API_KEY` repository Actions secret. You may also set `OPENAI_REVIEW_MODEL` as a repository variable to override the default review model.
 
+## PR Loop
+
+Use the local helper to standardize task PR creation. [AC1][AC3]
+
+```bash
+bash scripts/open-pr.sh
+```
+
+To request repository-side auto-merge after the review loop is green:
+
+```bash
+bash scripts/open-pr.sh --automerge
+```
+
+This helper runs `bash scripts/validate.sh`, pushes the current branch, opens or updates a PR against `main`, and applies the `task` label plus the optional `automerge` label.
+
+The repository can auto-review and auto-merge labeled PRs, but proactive Codex review still requires a separate polling or webhook automation outside normal GitHub Actions.
+
 ## Architecture and Plans
 
 - [AGENTS.md](./AGENTS.md) - Agent entry point and rules
