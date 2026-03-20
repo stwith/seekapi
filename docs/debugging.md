@@ -24,6 +24,7 @@ It exists so an agent or reviewer can start the system, prepare data, run smoke 
 
 - `.github/workflows/ci.yml` mirrors the local delivery gate on pushes and pull requests.
 - `.github/workflows/pr-review.yml` posts or updates a sticky pull request comment with changed files and current check status.
+- `.github/workflows/ai-pr-review.yml` can post an AI-assisted review summary when `OPENAI_API_KEY` is configured in repository Actions secrets.
 - Local debugging still starts with `bash scripts/validate.sh`; GitHub Actions should confirm the same gate remotely.
 
 ## Common Failure Buckets

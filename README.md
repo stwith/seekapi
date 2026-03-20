@@ -43,6 +43,8 @@ bash scripts/validate.sh
 
 This runs lint, typecheck, tests, build, architecture checks, AC coverage checks, and smoke checks.
 
+AI pull request review is optional and can be enabled by adding the `OPENAI_API_KEY` repository Actions secret. You may also set `OPENAI_REVIEW_MODEL` as a repository variable to override the default review model.
+
 ## Architecture and Plans
 
 - [AGENTS.md](./AGENTS.md) - Agent entry point and rules
