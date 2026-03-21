@@ -3,4 +3,6 @@
  */
 
 export { registerAuthPreHandler } from "./http/pre-handler.js";
-export { AuthService } from "./service/auth-service.js";
+export type { AuthPreHandlerDeps } from "./http/pre-handler.js";
+export { AuthService, hashKey } from "./service/auth-service.js";
+export type { AuthServiceDeps } from "./service/auth-service.js";
