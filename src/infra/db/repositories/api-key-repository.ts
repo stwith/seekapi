@@ -6,6 +6,10 @@
  * an in-memory store (tests).
  */
 
+import { eq, and } from "drizzle-orm";
+import type { DbClient } from "../client.js";
+import { apiKeys } from "../schema/api-keys.js";
+
 export interface ApiKeyRow {
   id: string;
   projectId: string;
@@ -35,5 +39,26 @@ export class InMemoryApiKeyRepository implements ApiKeyRepository {
 
   async findByHash(hash: string): Promise<ApiKeyRow | undefined> {
     return this.keys.find((k) => k.hashedKey === hash && k.status === "active");
+  }
+}
+
+/**
+ * Drizzle-backed implementation for production persistence. [AC1][AC2]
+ */
+export class DrizzleApiKeyRepository implements ApiKeyRepository {
+  constructor(private readonly db: DbClient) {}
+
+  async findByHash(hash: string): Promise<ApiKeyRow | undefined> {
+    const rows = await this.db
+      .select({
+        id: apiKeys.id,
+        projectId: apiKeys.projectId,
+        hashedKey: apiKeys.hashedKey,
+        status: apiKeys.status,
+      })
+      .from(apiKeys)
+      .where(and(eq(apiKeys.hashedKey, hash), eq(apiKeys.status, "active")))
+      .limit(1);
+    return rows[0];
   }
 }

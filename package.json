@@ -15,29 +15,29 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "pr:open": "bash scripts/open-pr.sh",
-    "db:generate": "node --env-file-if-exists=.env ./node_modules/.bin/drizzle-kit generate",
-    "db:migrate": "node --env-file-if-exists=.env ./node_modules/.bin/drizzle-kit migrate"
+    "db:generate": "node --env-file-if-exists=.env ./scripts/run-drizzle-kit.js generate",
+    "db:migrate": "node --env-file-if-exists=.env ./scripts/run-drizzle-kit.js migrate"
   },
   "dependencies": {
-    "fastify": "^5.2.1",
-    "zod": "^3.24.2",
-    "drizzle-orm": "^0.38.4",
-    "pg": "^8.13.1",
-    "ioredis": "^5.4.2",
     "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-metrics": "^1.30.1",
     "@opentelemetry/sdk-node": "^0.57.1",
     "@opentelemetry/sdk-trace-base": "^1.30.1",
-    "@opentelemetry/sdk-metrics": "^1.30.1"
+    "drizzle-orm": "^0.38.4",
+    "fastify": "^5.2.1",
+    "ioredis": "^5.4.2",
+    "pg": "^8.13.1",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
-    "typescript": "^5.7.3",
-    "tsx": "^4.19.2",
-    "vitest": "^3.0.5",
-    "eslint": "^9.19.0",
     "@eslint/js": "^9.19.0",
-    "typescript-eslint": "^8.22.0",
-    "drizzle-kit": "^0.30.4",
     "@types/node": "^22.12.0",
-    "@types/pg": "^8.11.11"
+    "@types/pg": "^8.11.11",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9.19.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.22.0",
+    "vitest": "^3.0.5"
   }
 }
