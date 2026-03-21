@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api.js";
 import type { Project } from "../../lib/types.js";
+import { StatusBadge } from "../../components/ui/index.js";
 
 interface OverviewProps {
   adminKey: string;
@@ -12,12 +13,10 @@ export function Overview({ adminKey }: OverviewProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check health
     fetch("/v1/health")
       .then((r) => setHealthy(r.ok))
       .catch(() => setHealthy(false));
 
-    // Load projects
     api
       .listProjects(adminKey)
       .then(setProjects)
@@ -26,21 +25,21 @@ export function Overview({ adminKey }: OverviewProps) {
 
   return (
     <div>
-      <h1>Overview</h1>
-      <section style={{ marginBottom: 24 }}>
-        <h2>Server Status</h2>
-        <p data-testid="health-status">
+      <h1 className="text-xl font-bold text-white mb-6">Overview</h1>
+      <section className="mb-6">
+        <h2 className="text-lg font-semibold text-gray-200 mb-2">Server Status</h2>
+        <p data-testid="health-status" className="text-gray-300">
           {healthy === null ? "Checking..." : healthy ? "Connected" : "Unreachable"}
         </p>
       </section>
       <section>
-        <h2>Projects ({projects.length})</h2>
-        {error && <p style={{ color: "red" }}>{error}</p>}
-        {projects.length === 0 && !error && <p>No projects yet.</p>}
-        <ul>
+        <h2 className="text-lg font-semibold text-gray-200 mb-2">Projects ({projects.length})</h2>
+        {error && <p className="text-red-400">{error}</p>}
+        {projects.length === 0 && !error && <p className="text-gray-500">No projects yet.</p>}
+        <ul className="space-y-1">
           {projects.map((p) => (
-            <li key={p.id}>
-              {p.name} ({p.status})
+            <li key={p.id} className="flex items-center gap-2 text-gray-300">
+              {p.name} <StatusBadge variant={p.status === "active" ? "active" : "disabled"} />
             </li>
           ))}
         </ul>

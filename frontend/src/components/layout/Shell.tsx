@@ -15,19 +15,12 @@ interface ShellProps {
 
 export function Shell({ onLogout, children }: ShellProps) {
   return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "system-ui" }}>
+    <div className="flex min-h-screen font-sans bg-gray-950 text-gray-200">
       <nav
         data-testid="nav-sidebar"
-        style={{
-          width: 200,
-          background: "#1a1a2e",
-          color: "#eee",
-          padding: "16px 0",
-          display: "flex",
-          flexDirection: "column",
-        }}
+        className="w-52 bg-sidebar flex flex-col py-4"
       >
-        <div style={{ padding: "0 16px 16px", fontWeight: 700, fontSize: 14 }}>
+        <div className="px-4 pb-4 font-bold text-sm text-gray-100">
           SeekAPI Console
         </div>
         {NAV_ITEMS.map((item) => (
@@ -35,35 +28,26 @@ export function Shell({ onLogout, children }: ShellProps) {
             key={item.to}
             to={item.to}
             end={item.to === "/"}
-            style={({ isActive }) => ({
-              display: "block",
-              padding: "8px 16px",
-              color: isActive ? "#fff" : "#aaa",
-              background: isActive ? "#16213e" : "transparent",
-              textDecoration: "none",
-              fontSize: 14,
-            })}
+            className={({ isActive }) =>
+              `block px-4 py-2 text-sm no-underline transition-colors ${
+                isActive
+                  ? "text-white bg-sidebar-active"
+                  : "text-gray-400 hover:text-gray-200 hover:bg-gray-800"
+              }`
+            }
           >
             {item.label}
           </NavLink>
         ))}
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         <button
           onClick={onLogout}
-          style={{
-            margin: "8px 16px",
-            padding: "6px 12px",
-            background: "transparent",
-            border: "1px solid #555",
-            color: "#aaa",
-            cursor: "pointer",
-            fontSize: 12,
-          }}
+          className="mx-4 px-3 py-1.5 bg-transparent border border-gray-600 text-gray-400 text-xs rounded cursor-pointer hover:border-gray-400 hover:text-gray-200 transition-colors"
         >
           Disconnect
         </button>
       </nav>
-      <main style={{ flex: 1, padding: 24 }}>{children}</main>
+      <main className="flex-1 p-6">{children}</main>
     </div>
   );
 }
