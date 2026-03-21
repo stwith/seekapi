@@ -23,8 +23,8 @@ const CAPABILITY_ENDPOINT: Record<string, string> = {
 };
 
 /**
- * Brave Search provider adapter.
- * Structural skeleton — full HTTP integration comes in Task 6.
+ * Brave Search provider adapter. [AC4]
+ * Maps canonical requests through the Brave HTTP client and normalizes responses.
  */
 export class BraveAdapter implements ProviderAdapter {
   readonly id = "brave";
@@ -76,11 +76,7 @@ export class BraveAdapter implements ProviderAdapter {
     };
   }
 
-  /**
-   * Health check placeholder — returns healthy until Task 9 wires
-   * real health probes. Does NOT call the upstream API to avoid
-   * consuming provider quota during skeleton phase.
-   */
+  /** Health check — placeholder until Task 9 wires real probes. */
   async healthCheck(_ctx: ProviderHealthContext): Promise<ProviderHealthStatus> {
     return {
       provider: this.id,
