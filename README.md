@@ -18,20 +18,27 @@ npm run typecheck
 npm run dev
 ```
 
-> Database migrations (`npm run db:migrate`) and demo data seeding (`bash scripts/seed-demo-data.sh`) require PostgreSQL and Redis and will be available after Task 5.
+Verify the server is running:
+
+```bash
+curl http://localhost:3000/v1/health
+# → {"status":"ok","timestamp":"..."}
+```
+
+For a full walkthrough — starting dependencies, setting env vars, seeding data, hitting every endpoint, and running the delivery gate — see the [Local Dev Checklist](docs/plans/2026-03-20-local-dev-checklist.md).
 
 ## Scripts
 
 | Command              | Description                        |
 | -------------------- | ---------------------------------- |
-| `npm run dev`        | Start with hot reload (tsx watch)  |
+| `npm run dev`        | Start with hot reload (auto-loads `.env`) |
 | `npm run build`      | Compile TypeScript                 |
 | `npm start`          | Run compiled output                |
 | `npm test`           | Run tests (vitest)                 |
 | `npm run lint`       | Lint source                        |
 | `npm run typecheck`  | Type-check without emitting        |
-| `npm run db:generate`| Generate Drizzle migrations (requires DB schema, Task 5+) |
-| `npm run db:migrate` | Apply Drizzle migrations (requires DB schema, Task 5+)    |
+| `npm run db:generate`| Generate Drizzle migrations        |
+| `npm run db:migrate` | Apply Drizzle migrations            |
 
 ## Validation
 
