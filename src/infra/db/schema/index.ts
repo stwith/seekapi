@@ -6,3 +6,4 @@ export { routingPolicies } from "./routing-policies.js";
 export { usageEvents } from "./usage-events.js";
 export { auditLogs } from "./audit-logs.js";
 export { providerHealthSnapshots } from "./provider-health-snapshots.js";
+export { projectQuotas } from "./project-quotas.js";

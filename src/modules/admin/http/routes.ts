@@ -8,6 +8,26 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { AdminService, AdminError } from "../service/admin-service.js";
 
+/** Parse usage query filters from request query params. [Phase 3.5 AC6] */
+function parseUsageFilters(query: Record<string, string>): {
+  projectId?: string;
+  apiKeyId?: string;
+  capability?: string;
+  success?: boolean;
+  from?: string;
+  to?: string;
+} {
+  const filters: ReturnType<typeof parseUsageFilters> = {};
+  if (query.projectId) filters.projectId = query.projectId;
+  if (query.apiKeyId) filters.apiKeyId = query.apiKeyId;
+  if (query.capability) filters.capability = query.capability;
+  if (query.success === "true") filters.success = true;
+  else if (query.success === "false") filters.success = false;
+  if (query.from) filters.from = query.from;
+  if (query.to) filters.to = query.to;
+  return filters;
+}
+
 export interface AdminRouteDeps {
   adminService: AdminService;
   /** The expected ADMIN_API_KEY value for admin authentication. */
@@ -205,6 +225,174 @@ export async function registerAdminRoutes(
         }
         throw err;
       }
+    },
+  );
+
+  // --- Dashboard stats [Phase 3.5 AC6] ---
+  app.get(
+    "/v1/admin/stats/dashboard",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = req.query as Record<string, string>;
+      const filters = parseUsageFilters(query);
+      const stats = await adminService.getDashboardStats(filters);
+      return reply.send(stats);
+    },
+  );
+
+  // --- Time series [Phase 3.5 AC6] ---
+  app.get(
+    "/v1/admin/stats/timeseries",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = req.query as Record<string, string>;
+      const filters = parseUsageFilters(query);
+      const granularity = query.granularity === "day" ? "day" : "hour";
+      const series = await adminService.getTimeSeries(filters, granularity);
+      return reply.send({ series });
+    },
+  );
+
+  // --- Capability breakdown [Phase 3.5 AC6] ---
+  app.get(
+    "/v1/admin/stats/capabilities",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = req.query as Record<string, string>;
+      const filters = parseUsageFilters(query);
+      const capabilities = await adminService.getCapabilityBreakdown(filters);
+      return reply.send({ capabilities });
+    },
+  );
+
+  // --- Usage event query [Phase 3.5 AC6] ---
+  app.get(
+    "/v1/admin/usage",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = req.query as Record<string, string>;
+      const filters = parseUsageFilters(query);
+      const page = Math.max(1, parseInt(query.page ?? "1", 10) || 1);
+      const pageSize = Math.min(200, Math.max(1, parseInt(query.pageSize ?? "50", 10) || 50));
+      const result = await adminService.queryUsageEvents(filters, page, pageSize);
+      return reply.send(result);
+    },
+  );
+
+  // --- Per-key stats [Phase 3.5 AC6] ---
+  app.get(
+    "/v1/admin/projects/:projectId/keys/stats",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      try {
+        const keys = await adminService.getPerKeyStats(projectId);
+        return reply.send({ keys });
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // --- Audit log query [Phase 3.5 AC6] ---
+  app.get(
+    "/v1/admin/audit",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = req.query as Record<string, string>;
+      const filters: { projectId?: string; action?: string; from?: string; to?: string } = {};
+      if (query.projectId) filters.projectId = query.projectId;
+      if (query.action) filters.action = query.action;
+      if (query.from) filters.from = query.from;
+      if (query.to) filters.to = query.to;
+      const page = Math.max(1, parseInt(query.page ?? "1", 10) || 1);
+      const pageSize = Math.min(200, Math.max(1, parseInt(query.pageSize ?? "50", 10) || 50));
+      const result = await adminService.queryAuditLogs(filters, page, pageSize);
+      return reply.send(result);
+    },
+  );
+
+  // --- Get project quota [Task 38] ---
+  app.get(
+    "/v1/admin/projects/:projectId/quota",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      try {
+        const quota = await adminService.getProjectQuota(projectId);
+        return reply.send(quota);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // --- Update project quota [Task 38] ---
+  app.put(
+    "/v1/admin/projects/:projectId/quota",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      const body = req.body as Record<string, unknown> | undefined;
+
+      // Validate numeric fields are non-negative
+      const numericFields = ["dailyRequestLimit", "monthlyRequestLimit", "maxKeys", "rateLimitRpm"] as const;
+      for (const field of numericFields) {
+        const val = body?.[field];
+        if (val !== undefined && val !== null && (typeof val !== "number" || val < 0)) {
+          return reply.status(400).send({
+            error: "BAD_REQUEST",
+            message: `${field} must be a non-negative number`,
+          });
+        }
+      }
+
+      // Validate status field
+      const VALID_STATUSES = new Set(["active", "suspended"]);
+      if (body?.status !== undefined && body.status !== null) {
+        if (typeof body.status !== "string" || !VALID_STATUSES.has(body.status)) {
+          return reply.status(400).send({
+            error: "BAD_REQUEST",
+            message: `status must be one of: ${[...VALID_STATUSES].join(", ")}`,
+          });
+        }
+      }
+
+      try {
+        const quota = await adminService.upsertProjectQuota(projectId, {
+          dailyRequestLimit: body?.dailyRequestLimit !== undefined
+            ? (body.dailyRequestLimit as number | null)
+            : undefined,
+          monthlyRequestLimit: body?.monthlyRequestLimit !== undefined
+            ? (body.monthlyRequestLimit as number | null)
+            : undefined,
+          maxKeys: body?.maxKeys != null ? (body.maxKeys as number) : undefined,
+          rateLimitRpm: body?.rateLimitRpm != null ? (body.rateLimitRpm as number) : undefined,
+          status: body?.status != null ? (body.status as string) : undefined,
+        });
+        return reply.send(quota);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // --- List all quotas [Task 38] ---
+  app.get(
+    "/v1/admin/quotas",
+    { preHandler: checkAdminAuth },
+    async (_req: FastifyRequest, reply: FastifyReply) => {
+      const quotas = await adminService.listAllQuotas();
+      return reply.send({ quotas });
     },
   );
 

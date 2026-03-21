@@ -5,6 +5,11 @@ import { Overview } from "../routes/overview/Overview.js";
 import { ProjectList } from "../routes/projects/ProjectList.js";
 import { ProjectDetailPage } from "../routes/projects/ProjectDetail.js";
 import { FlowRunner } from "../routes/flow-runner/FlowRunner.js";
+import { Dashboard } from "../routes/dashboard/Dashboard.js";
+import { KeysPage } from "../routes/keys/KeysPage.js";
+import { UsagePage } from "../routes/usage/UsagePage.js";
+import { SubscriptionsPage } from "../routes/subscriptions/SubscriptionsPage.js";
+import { ErrorBoundary } from "../components/ui/index.js";
 
 export function App() {
   const [adminKey, setAdminKey] = useState(
@@ -27,13 +32,19 @@ export function App() {
   return (
     <BrowserRouter>
       <Shell adminKey={adminKey} onLogout={() => handleSetAdminKey("")}>
+        <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Overview adminKey={adminKey} />} />
+          <Route path="/dashboard" element={<Dashboard adminKey={adminKey} />} />
           <Route path="/projects" element={<ProjectList adminKey={adminKey} />} />
           <Route path="/projects/:projectId" element={<ProjectDetailPage adminKey={adminKey} />} />
+          <Route path="/keys" element={<KeysPage adminKey={adminKey} />} />
+          <Route path="/usage" element={<UsagePage adminKey={adminKey} />} />
+          <Route path="/subscriptions" element={<SubscriptionsPage adminKey={adminKey} />} />
           <Route path="/flow-runner" element={<FlowRunner adminKey={adminKey} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ErrorBoundary>
       </Shell>
     </BrowserRouter>
   );
@@ -42,23 +53,27 @@ export function App() {
 function LoginGate({ onSubmit }: { onSubmit: (key: string) => void }) {
   const [key, setKey] = useState("");
   return (
-    <div style={{ maxWidth: 400, margin: "120px auto", fontFamily: "system-ui" }}>
-      <h1>SeekAPI Operator Console</h1>
-      <p>Enter your Admin API Key to continue.</p>
+    <div className="max-w-md mx-auto mt-32 font-sans text-gray-200">
+      <h1 className="text-2xl font-bold text-white">SeekAPI Operator Console</h1>
+      <p className="text-gray-400 mt-2">Enter your Admin API Key to continue.</p>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           if (key.trim()) onSubmit(key.trim());
         }}
+        className="mt-4"
       >
         <input
           type="password"
           value={key}
           onChange={(e) => setKey(e.target.value)}
           placeholder="ADMIN_API_KEY"
-          style={{ width: "100%", padding: 8, marginBottom: 12, boxSizing: "border-box" }}
+          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-gray-200 mb-3"
         />
-        <button type="submit" style={{ padding: "8px 24px" }}>
+        <button
+          type="submit"
+          className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded"
+        >
           Connect
         </button>
       </form>

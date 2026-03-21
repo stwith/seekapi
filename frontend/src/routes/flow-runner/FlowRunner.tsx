@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { api } from "../../lib/api.js";
+import { StatusBadge } from "../../components/ui/index.js";
 
 interface FlowRunnerProps {
   adminKey: string;
@@ -41,9 +42,7 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
   );
 
   async function runFlow() {
-    if (!braveSecretRef.current.trim()) {
-      return;
-    }
+    if (!braveSecretRef.current.trim()) return;
     setRunning(true);
     setSteps(STEP_LABELS.map(() => ({ status: "pending" as const })));
 
@@ -54,38 +53,28 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
     let currentStep = 0;
 
     try {
-      // Step 1: Create project
       currentStep = 0;
       updateStep(0, { status: "running" });
       const project = await api.createProject(adminKey, `flow-test-${Date.now()}`);
       projectId = project.id;
       updateStep(0, { status: "success", detail: `Project: ${project.id}`, timestamp: new Date().toISOString() });
 
-      // Step 2: Attach Brave credential
       currentStep = 1;
       updateStep(1, { status: "running" });
       await api.upsertCredential(adminKey, projectId, "brave", braveSecretRef.current.trim());
       updateStep(1, { status: "success", detail: "Brave credential attached", timestamp: new Date().toISOString() });
 
-      // Step 3: Enable search.web
       currentStep = 2;
       updateStep(2, { status: "running" });
-      await api.configureBinding(adminKey, projectId, {
-        provider: "brave",
-        capability: "search.web",
-        enabled: true,
-        priority: 0,
-      });
+      await api.configureBinding(adminKey, projectId, { provider: "brave", capability: "search.web", enabled: true, priority: 0 });
       updateStep(2, { status: "success", detail: "search.web enabled", timestamp: new Date().toISOString() });
 
-      // Step 4: Mint Key A
       currentStep = 3;
       updateStep(3, { status: "running" });
       const keyAResult = await api.createApiKey(adminKey, projectId);
       keyA = keyAResult.rawKey;
       updateStep(3, { status: "success", detail: `Key A: ${keyA.slice(0, 12)}...`, timestamp: new Date().toISOString() });
 
-      // Step 5: Mint Key B
       currentStep = 4;
       updateStep(4, { status: "running" });
       const keyBResult = await api.createApiKey(adminKey, projectId);
@@ -93,7 +82,6 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
       keyBId = keyBResult.id;
       updateStep(4, { status: "success", detail: `Key B: ${keyB.slice(0, 12)}...`, timestamp: new Date().toISOString() });
 
-      // Step 6: Search with Key A
       currentStep = 5;
       updateStep(5, { status: "running" });
       const searchA = await api.search(keyA, searchQueryRef.current);
@@ -105,7 +93,6 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
         return;
       }
 
-      // Step 7: Search with Key B
       currentStep = 6;
       updateStep(6, { status: "running" });
       const searchB = await api.search(keyB, searchQueryRef.current);
@@ -117,13 +104,11 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
         return;
       }
 
-      // Step 8: Disable Key B
       currentStep = 7;
       updateStep(7, { status: "running" });
       await api.disableApiKey(adminKey, keyBId);
       updateStep(7, { status: "success", detail: "Key B disabled", timestamp: new Date().toISOString() });
 
-      // Step 9: Verify Key B gets 401
       currentStep = 8;
       updateStep(8, { status: "running" });
       const verifyB = await api.search(keyB, searchQueryRef.current);
@@ -135,7 +120,6 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
         return;
       }
 
-      // Step 10: Verify Key A still succeeds
       currentStep = 9;
       updateStep(9, { status: "running" });
       const verifyA = await api.search(keyA, searchQueryRef.current);
@@ -160,73 +144,71 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
 
   return (
     <div>
-      <h1>Flow Runner</h1>
-      <p>Execute the Phase 2.5 Brave-only workflow end to end.</p>
+      <h1 className="text-xl font-bold text-white mb-2">Flow Runner</h1>
+      <p className="text-gray-400 text-sm mb-4">Execute the Phase 2.5 Brave-only workflow end to end.</p>
 
-      <div style={{ marginBottom: 16, display: "flex", gap: 8, alignItems: "center" }}>
+      <div className="mb-4 flex gap-2 items-center">
         <input
           type="password"
           value={braveSecret}
           onChange={(e) => { setBraveSecret(e.target.value); braveSecretRef.current = e.target.value; }}
           placeholder="Brave API Secret"
-          style={{ padding: 6, width: 250 }}
+          className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 w-64"
         />
         <input
           value={searchQuery}
           onChange={(e) => { setSearchQuery(e.target.value); searchQueryRef.current = e.target.value; }}
           placeholder="Search query"
-          style={{ padding: 6, width: 200 }}
+          className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 w-52"
         />
-        <button onClick={runFlow} disabled={running}>
+        <button
+          onClick={runFlow}
+          disabled={running}
+          className="px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded disabled:opacity-50"
+        >
           {running ? "Running..." : "Run Flow"}
         </button>
       </div>
 
       {allDone && (
-        <p data-testid="flow-success" style={{ color: "green", fontWeight: 700 }}>
+        <p data-testid="flow-success" className="text-green-400 font-bold mb-2">
           All 10 steps passed.
         </p>
       )}
       {hasFailed && (
-        <p data-testid="flow-failure" style={{ color: "red", fontWeight: 700 }}>
+        <p data-testid="flow-failure" className="text-red-400 font-bold mb-2">
           Flow failed. See details below.
         </p>
       )}
 
-      <table data-testid="flow-steps" style={{ borderCollapse: "collapse", width: "100%" }}>
+      <table data-testid="flow-steps" className="w-full text-sm text-left">
         <thead>
-          <tr>
-            <th style={{ textAlign: "left", padding: 8, borderBottom: "2px solid #ddd" }}>Step</th>
-            <th style={{ textAlign: "left", padding: 8, borderBottom: "2px solid #ddd" }}>Status</th>
-            <th style={{ textAlign: "left", padding: 8, borderBottom: "2px solid #ddd" }}>Detail</th>
-            <th style={{ textAlign: "left", padding: 8, borderBottom: "2px solid #ddd" }}>Time</th>
+          <tr className="border-b-2 border-gray-700 text-gray-400 uppercase text-xs">
+            <th className="px-3 py-2 font-medium">Step</th>
+            <th className="px-3 py-2 font-medium">Status</th>
+            <th className="px-3 py-2 font-medium">Detail</th>
+            <th className="px-3 py-2 font-medium">Time</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-gray-800">
           {steps.map((step, i) => (
             <tr key={i}>
-              <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>{STEP_LABELS[i]}</td>
-              <td style={{ padding: 8, borderBottom: "1px solid #eee" }}>
-                <span
-                  style={{
-                    color:
-                      step.status === "success"
-                        ? "green"
-                        : step.status === "failure"
-                          ? "red"
-                          : step.status === "running"
-                            ? "orange"
-                            : "#999",
-                  }}
-                >
-                  {step.status}
-                </span>
+              <td className="px-3 py-2 text-gray-300">{STEP_LABELS[i]}</td>
+              <td className="px-3 py-2">
+                <StatusBadge
+                  variant={
+                    step.status === "success" ? "active" :
+                    step.status === "failure" ? "error" :
+                    step.status === "running" ? "pending" : "disabled"
+                  }
+                  label={step.status}
+                />
               </td>
-              <td style={{ padding: 8, borderBottom: "1px solid #eee", fontFamily: "monospace", fontSize: 12 }}>
-                {step.detail ?? "—"}
+              <td className="px-3 py-2 font-mono text-xs text-gray-400">
+                {step.detail ?? "\u2014"}
               </td>
-              <td style={{ padding: 8, borderBottom: "1px solid #eee", fontSize: 12 }}>
-                {step.timestamp ?? "—"}
+              <td className="px-3 py-2 text-xs text-gray-500">
+                {step.timestamp ?? "\u2014"}
               </td>
             </tr>
           ))}
