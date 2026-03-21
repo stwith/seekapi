@@ -115,7 +115,10 @@ export class InMemoryUsageEventRepository implements UsageEventRepository {
     const filtered = this.applyFilters(filters);
     const start = (page - 1) * pageSize;
     return {
-      items: filtered.slice(start, start + pageSize),
+      items: filtered.slice(start, start + pageSize).map((e) => ({
+        ...e,
+        createdAt: this.timestamps.get(e.requestId)?.toISOString(),
+      })),
       total: filtered.length,
       page,
       pageSize,
@@ -237,6 +240,7 @@ export class DrizzleUsageEventRepository implements UsageEventRepository {
       resultCount: r.resultCount,
       fallbackCount: r.fallbackCount,
       estimatedCost: r.estimatedCost ?? undefined,
+      createdAt: r.createdAt?.toISOString(),
     };
   }
 

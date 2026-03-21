@@ -72,6 +72,8 @@ export interface ApiKeyInfo {
   id: string;
   projectId: string;
   status: string;
+  createdAt?: string;
+  lastUsedAt?: string | null;
 }
 
 export interface CredentialMeta {
@@ -120,6 +122,7 @@ export interface UsageEvent {
   latencyMs: number;
   resultCount: number;
   fallbackCount: number;
+  createdAt?: string;
 }
 
 export interface PaginatedResult<T> {

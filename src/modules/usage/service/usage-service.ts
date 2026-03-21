@@ -25,6 +25,7 @@ export interface UsageEvent {
   resultCount: number;
   fallbackCount: number;
   estimatedCost?: string;
+  createdAt?: string;
 }
 
 /** Persistence sink — implemented by DB repository or in-memory store. */

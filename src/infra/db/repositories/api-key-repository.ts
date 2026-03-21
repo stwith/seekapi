@@ -15,6 +15,8 @@ export interface ApiKeyRow {
   projectId: string;
   hashedKey: string;
   status: string;
+  createdAt?: string;
+  lastUsedAt?: string | null;
 }
 
 export interface ApiKeyRepository {
@@ -82,15 +84,25 @@ export class DrizzleApiKeyRepository implements ApiKeyRepository {
   }
 
   async listByProject(projectId: string): Promise<ApiKeyRow[]> {
-    return this.db
+    const rows = await this.db
       .select({
         id: apiKeys.id,
         projectId: apiKeys.projectId,
         hashedKey: apiKeys.hashedKey,
         status: apiKeys.status,
+        createdAt: apiKeys.createdAt,
+        lastUsedAt: apiKeys.lastUsedAt,
       })
       .from(apiKeys)
       .where(eq(apiKeys.projectId, projectId));
+    return rows.map((r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      hashedKey: r.hashedKey,
+      status: r.status,
+      createdAt: r.createdAt?.toISOString(),
+      lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
+    }));
   }
 
   async create(row: ApiKeyRow): Promise<void> {

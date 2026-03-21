@@ -151,9 +151,58 @@ describe("Admin quota routes [Task 38]", () => {
     expect(res.statusCode).toBe(404);
   });
 
+  // --- Validation ---
+
+  it("rejects negative maxKeys", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: `/v1/admin/projects/${TEST_PROJECT_ID}/quota`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { maxKeys: -5 },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json();
+    expect(body.error).toBe("BAD_REQUEST");
+  });
+
+  it("rejects negative rateLimitRpm", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: `/v1/admin/projects/${TEST_PROJECT_ID}/quota`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { rateLimitRpm: -1 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects invalid status value", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: `/v1/admin/projects/${TEST_PROJECT_ID}/quota`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { status: "bogus" },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json();
+    expect(body.message).toContain("status must be one of");
+  });
+
+  it("accepts valid status values", async () => {
+    for (const status of ["active", "suspended"]) {
+      const res = await app.inject({
+        method: "PUT",
+        url: `/v1/admin/projects/${TEST_PROJECT_ID}/quota`,
+        headers: { authorization: `Bearer ${ADMIN_KEY}` },
+        payload: { status },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().status).toBe(status);
+    }
+  });
+
   // --- GET all quotas ---
 
-  it("lists all quotas", async () => {
+  it("lists all quotas including projects with default quotas", async () => {
     const res = await app.inject({
       method: "GET",
       url: "/v1/admin/quotas",
@@ -162,10 +211,18 @@ describe("Admin quota routes [Task 38]", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(Array.isArray(body.quotas)).toBe(true);
-    // At least the one we created
+    // Should include at least the test project
     const found = body.quotas.find((q: { projectId: string }) => q.projectId === TEST_PROJECT_ID);
     expect(found).toBeDefined();
     expect(typeof found.currentDailyUsage).toBe("number");
     expect(typeof found.currentMonthlyUsage).toBe("number");
+    // All projects should appear (not just ones with explicit quota rows)
+    const projectsRes = await app.inject({
+      method: "GET",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    const projects = projectsRes.json();
+    expect(body.quotas.length).toBeGreaterThanOrEqual(projects.length);
   });
 });

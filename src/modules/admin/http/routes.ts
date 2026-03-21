@@ -340,6 +340,30 @@ export async function registerAdminRoutes(
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { projectId } = req.params as { projectId: string };
       const body = req.body as Record<string, unknown> | undefined;
+
+      // Validate numeric fields are non-negative
+      const numericFields = ["dailyRequestLimit", "monthlyRequestLimit", "maxKeys", "rateLimitRpm"] as const;
+      for (const field of numericFields) {
+        const val = body?.[field];
+        if (val !== undefined && val !== null && (typeof val !== "number" || val < 0)) {
+          return reply.status(400).send({
+            error: "BAD_REQUEST",
+            message: `${field} must be a non-negative number`,
+          });
+        }
+      }
+
+      // Validate status field
+      const VALID_STATUSES = new Set(["active", "suspended"]);
+      if (body?.status !== undefined && body.status !== null) {
+        if (typeof body.status !== "string" || !VALID_STATUSES.has(body.status)) {
+          return reply.status(400).send({
+            error: "BAD_REQUEST",
+            message: `status must be one of: ${[...VALID_STATUSES].join(", ")}`,
+          });
+        }
+      }
+
       try {
         const quota = await adminService.upsertProjectQuota(projectId, {
           dailyRequestLimit: body?.dailyRequestLimit !== undefined

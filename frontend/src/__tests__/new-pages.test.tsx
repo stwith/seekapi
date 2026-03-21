@@ -17,6 +17,9 @@ vi.mock("../lib/api.js", () => ({
     getCapabilityBreakdown: vi.fn(),
     listProjects: vi.fn(),
     getPerKeyStats: vi.fn(),
+    listProjectKeys: vi.fn(),
+    createApiKey: vi.fn(),
+    disableApiKey: vi.fn(),
     queryUsageEvents: vi.fn(),
     listQuotas: vi.fn(),
     updateProjectQuota: vi.fn(),
@@ -89,15 +92,13 @@ describe("KeysPage [Task 36]", () => {
     vi.clearAllMocks();
   });
 
-  it("renders per-key stats across projects", async () => {
+  it("renders keys with lifecycle controls", async () => {
     mockApi.listProjects.mockResolvedValue([
       { id: "proj-1", name: "Project One", status: "active" },
     ]);
-    mockApi.getPerKeyStats.mockResolvedValue({
-      keys: [
-        { apiKeyId: "key-1", requestCount: 50, successCount: 48, failureCount: 2, avgLatencyMs: 120 },
-      ],
-    });
+    mockApi.listProjectKeys.mockResolvedValue([
+      { id: "key-1", projectId: "proj-1", status: "active", createdAt: "2026-03-20T12:00:00Z", lastUsedAt: "2026-03-21T08:00:00Z" },
+    ]);
 
     render(
       <MemoryRouter>
@@ -107,8 +108,10 @@ describe("KeysPage [Task 36]", () => {
 
     await waitFor(() => {
       expect(screen.getByText("key-1")).toBeInTheDocument();
-      expect(screen.getByText("Project One")).toBeInTheDocument();
-      expect(screen.getByText("50")).toBeInTheDocument();
+      // "Project One" appears in both the mint dropdown and the table
+      expect(screen.getAllByText("Project One").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("Disable")).toBeInTheDocument();
+      expect(screen.getByTestId("mint-section")).toBeInTheDocument();
     });
   });
 
@@ -125,14 +128,47 @@ describe("KeysPage [Task 36]", () => {
       expect(screen.getByTestId("empty-state")).toBeInTheDocument();
     });
   });
+
+  it("mints a new key with reveal-once display", async () => {
+    mockApi.listProjects.mockResolvedValue([
+      { id: "proj-1", name: "Project One", status: "active" },
+    ]);
+    mockApi.listProjectKeys.mockResolvedValue([]);
+    mockApi.createApiKey.mockResolvedValue({
+      id: "key-new",
+      projectId: "proj-1",
+      rawKey: "sk_testapikey123",
+    });
+
+    render(
+      <MemoryRouter>
+        <KeysPage adminKey="test-key" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mint-section")).toBeInTheDocument();
+    });
+
+    // Select project and mint
+    fireEvent.change(screen.getByDisplayValue("Select project..."), { target: { value: "proj-1" } });
+    fireEvent.click(screen.getByText("Mint New Key"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("revealed-key")).toBeInTheDocument();
+      expect(screen.getByText("sk_testapikey123")).toBeInTheDocument();
+      expect(screen.getByText("Copy")).toBeInTheDocument();
+    });
+  });
 });
 
 describe("UsagePage [Task 37]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listProjects.mockResolvedValue([]);
   });
 
-  it("renders paginated usage events", async () => {
+  it("renders paginated usage events with timestamp and fallback columns", async () => {
     mockApi.queryUsageEvents.mockResolvedValue({
       items: [
         {
@@ -145,7 +181,8 @@ describe("UsagePage [Task 37]", () => {
           success: true,
           latencyMs: 100,
           resultCount: 10,
-          fallbackCount: 0,
+          fallbackCount: 2,
+          createdAt: "2026-03-21T10:00:00Z",
         },
       ],
       total: 1,
@@ -163,7 +200,9 @@ describe("UsagePage [Task 37]", () => {
       expect(screen.getByTestId("data-table")).toBeInTheDocument();
       expect(screen.getByText("brave")).toBeInTheDocument();
       expect(screen.getByText("100ms")).toBeInTheDocument();
+      expect(screen.getByText("2")).toBeInTheDocument(); // fallback count
       expect(screen.getByTestId("pagination")).toBeInTheDocument();
+      expect(screen.getByTestId("csv-export")).toBeInTheDocument();
     });
   });
 
@@ -183,6 +222,37 @@ describe("UsagePage [Task 37]", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("empty-state")).toBeInTheDocument();
+    });
+  });
+
+  it("has project, key, capability, status, and date range filters", async () => {
+    mockApi.listProjects.mockResolvedValue([
+      { id: "proj-1", name: "Project One", status: "active" },
+    ]);
+    mockApi.queryUsageEvents.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 25,
+    });
+
+    render(
+      <MemoryRouter>
+        <UsagePage adminKey="test-key" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      // Project filter
+      expect(screen.getByDisplayValue("All projects")).toBeInTheDocument();
+      // Capability filter
+      expect(screen.getByDisplayValue("All capabilities")).toBeInTheDocument();
+      // Status filter
+      expect(screen.getByDisplayValue("All statuses")).toBeInTheDocument();
+      // API Key ID filter
+      expect(screen.getByPlaceholderText("API Key ID")).toBeInTheDocument();
+      // Date range picker
+      expect(screen.getByTestId("date-range-picker")).toBeInTheDocument();
     });
   });
 });

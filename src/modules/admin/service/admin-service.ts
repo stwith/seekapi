@@ -186,7 +186,7 @@ export class AdminService {
   }
 
   /** List keys for a project. [Phase 3 AC4] */
-  async listProjectKeys(projectId: string): Promise<{ id: string; projectId: string; status: string }[]> {
+  async listProjectKeys(projectId: string): Promise<{ id: string; projectId: string; status: string; createdAt?: string; lastUsedAt?: string | null }[]> {
     const found = await this.deps.projectRepository.findById(projectId);
     if (!found) {
       throw new AdminError("Project not found", "PROJECT_NOT_FOUND");
@@ -198,6 +198,8 @@ export class AdminService {
       id: k.id,
       projectId: k.projectId,
       status: k.status,
+      createdAt: k.createdAt,
+      lastUsedAt: k.lastUsedAt,
     }));
   }
 
@@ -394,15 +396,27 @@ export class AdminService {
     return merged;
   }
 
-  /** List all project quotas with current usage. */
+  /** List all project quotas with current usage (includes defaults for projects without explicit quota). */
   async listAllQuotas(): Promise<(ProjectQuota & { currentDailyUsage: number; currentMonthlyUsage: number })[]> {
+    if (!this.deps.projectRepository.listAll) return [];
+
+    const projects = await this.deps.projectRepository.listAll();
     const quotaRepo = this.deps.quotaRepository;
-    if (!quotaRepo) return [];
-    const quotas = await quotaRepo.listAll();
+
+    // Build a map of existing quota rows keyed by projectId
+    const quotaMap = new Map<string, ProjectQuota>();
+    if (quotaRepo) {
+      const existing = await quotaRepo.listAll();
+      for (const q of existing) {
+        quotaMap.set(q.projectId, q);
+      }
+    }
+
     return Promise.all(
-      quotas.map(async (q) => {
-        const usage = await this.computeUsageCounts(q.projectId);
-        return { ...q, currentDailyUsage: usage.daily, currentMonthlyUsage: usage.monthly };
+      projects.map(async (p) => {
+        const quota = quotaMap.get(p.id) ?? this.defaultQuota(p.id);
+        const usage = await this.computeUsageCounts(p.id);
+        return { ...quota, currentDailyUsage: usage.daily, currentMonthlyUsage: usage.monthly };
       }),
     );
   }
