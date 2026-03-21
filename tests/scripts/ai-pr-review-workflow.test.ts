@@ -10,6 +10,8 @@ describe("Codex GitHub review automation", () => {
   test("AI review workflow guides contributors to Codex GitHub review instead of API key setup", () => {
     const workflow = readRepoFile(".github/workflows/ai-pr-review.yml");
 
+    expect(workflow).toContain("pull_request:");
+    expect(workflow).not.toContain("pull_request_target:");
     expect(workflow).toContain("@codex review");
     expect(workflow).not.toContain("Add repository secret `OPENAI_API_KEY`");
     expect(workflow).not.toContain("OPENAI_REVIEW_MODEL");

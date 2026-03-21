@@ -14,7 +14,7 @@ AC1: The repository contains an explicit `CODEOWNERS` file that assigns ownershi
 
 AC2: The repository contains a dedicated AI review workflow for pull requests.
 
-AC3: The AI review workflow uses only PR metadata and diffs gathered through the GitHub API and does not require checking out untrusted PR code with elevated secrets.
+AC3: The AI review workflow uses only PR metadata gathered through the GitHub API, runs without elevated secrets, and can execute from the PR branch definition so contributors see the current review guidance on the PR they opened.
 
 AC4: The AI review workflow safely no-ops when no structured Codex review comment exists yet and does not fail the repository delivery loop in that case.
 

@@ -43,7 +43,7 @@ bash scripts/validate.sh
 
 This runs lint, typecheck, tests, build, architecture checks, AC coverage checks, and smoke checks.
 
-AI pull request review in this repository is based on Codex's GitHub integration, not a repository `OPENAI_API_KEY` secret. Trigger it in GitHub with `@codex review`, or enable Codex auto-review for the repository in GitHub/Codex settings. [AC3][AC4][AC5]
+AI pull request review in this repository is based on Codex's GitHub integration, not a repository `OPENAI_API_KEY` secret. The guidance workflow runs on `pull_request`, so the PR immediately reflects the branch's current review instructions. Trigger Codex in GitHub with `@codex review`, or enable Codex auto-review for the repository in GitHub/Codex settings. [AC3][AC4][AC5]
 
 ## PR Loop
 
