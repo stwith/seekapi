@@ -2,33 +2,34 @@
 
 ## Purpose
 
-This document explains the minimum debugging workflow for SeekAPI.
-It exists so an agent or reviewer can start the system, prepare data, run smoke checks, and understand common failure points.
+This document explains the debugging workflow for SeekAPI.
+It covers system startup, data preparation, smoke checks, and common failure points.
 
 ## Standard Flow
 
-1. Start dependencies.
-2. Seed demo data.
-3. Start the app.
-4. Run smoke.
-5. Inspect logs and traces.
+1. Set required env vars (`ENCRYPTION_KEY`, optionally `BRAVE_API_KEY`).
+2. Start the app (`npm run dev`). Server auto-seeds demo project from env vars.
+3. Run smoke (`bash scripts/validate.sh`).
+4. Inspect logs.
 
-## Expected Helper Scripts
+## Scripts
 
-- `bash scripts/dev.sh`
-- `bash scripts/seed-demo-data.sh`
-- `bash scripts/smoke.sh`
-- `bash scripts/validate.sh`
+| Script | Purpose |
+|---|---|
+| `bash scripts/validate.sh` | Full delivery gate (lint, typecheck, tests, build, architecture, AC, smoke) |
+| `bash scripts/smoke.sh` | Quick smoke: build, start server, hit `/v1/health` |
+| `bash scripts/check-architecture.sh` | Verify layering rules |
+| `bash scripts/check-ac-coverage.sh` | Verify AC tag coverage in plan |
+| `bash scripts/open-pr.sh` | Validate, push, open/update PR |
+| `bash scripts/claude-fix-pr.sh <N>` | Render Codex review into repair prompt |
 
 ## GitHub Loop
 
 - `.github/workflows/ci.yml` mirrors the local delivery gate on pushes and pull requests.
 - `.github/workflows/pr-review.yml` posts or updates a sticky pull request comment with changed files and current check status.
-- `.github/workflows/auto-merge.yml` can squash-merge PRs labeled `automerge` once `validate` and `comment` are green, the latest structured Codex review is `READY`, and review threads are resolved. [AC2][AC3]
-- `bash scripts/open-pr.sh` standardizes the local branch -> validate -> push -> PR flow and can add `automerge` on request. [AC1][AC3]
-- `bash scripts/claude-fix-pr.sh <pr-number>` renders the latest structured Codex review comment into a repair prompt for Claude. [AC1][AC3]
-- Local debugging still starts with `bash scripts/validate.sh`; GitHub Actions should confirm the same gate remotely.
-- GitHub workflows can react to PR events, but the actual Codex review still comes from the GitHub/Codex integration rather than an Actions API key.
+- `.github/workflows/auto-merge.yml` can squash-merge PRs labeled `automerge` once `validate` and `comment` are green, the latest structured Codex review is `READY`, and review threads are resolved.
+- `bash scripts/open-pr.sh` standardizes the local branch -> validate -> push -> PR flow and can add `automerge` on request.
+- `bash scripts/claude-fix-pr.sh <pr-number>` renders the latest structured Codex review comment into a repair prompt for Claude.
 
 ## Codex Review Comment Protocol
 
@@ -39,81 +40,94 @@ It exists so an agent or reviewer can start the system, prepare data, run smoke 
 - Resolve fixed review threads before posting `STATUS: READY`
 - Auto-merge will wait for the latest Codex review status to become `READY` and for all review threads to be resolved
 
+## Key Environment Variables
+
+| Variable | Purpose | Fallback |
+|---|---|---|
+| `ENCRYPTION_KEY` | Credential encryption at rest | **Required** |
+| `BRAVE_API_KEY` | Brave Search BYOK | Searches fail, health shows "unavailable" |
+| `DATABASE_URL` | PostgreSQL for durable persistence | In-memory (data lost on restart) |
+| `REDIS_URL` | Redis for durable rate limiting | In-memory (graceful degradation if Redis dies) |
+
 ## Common Failure Buckets
 
-### Validation Failures
+### Validation Failures (400)
 
-Symptoms:
-
-- request rejected with 400
-- missing or malformed fields
+Symptoms: request rejected with 400, missing or malformed fields.
 
 Check:
+- Route schema in `src/modules/capabilities/http/routes.ts`
+- Canonical request contract in `src/providers/core/types.ts`
+- Test coverage for AC labels
 
-- route schema
-- canonical request contract
-- test coverage for AC labels
+### Auth Failures (401/403)
 
-### Auth Failures
-
-Symptoms:
-
-- request rejected with 401 or 403
+Symptoms: request rejected with 401 or 403.
 
 Check:
+- `Authorization: Bearer <key>` header present
+- API key matches `SEED_API_KEY` (default: `sk_test_seekapi_demo_key_001`)
+- Key status is "active" in the repository
+- Project status is "active"
 
-- downstream API key loading
-- hash comparison
-- project capability policy
+### Provider Failures (502/504)
 
-### Provider Failures
-
-Symptoms:
-
-- upstream timeout
-- provider unavailable
-- bad upstream credential
+Symptoms: upstream timeout, provider unavailable, bad upstream credential.
 
 Check:
+- `BRAVE_API_KEY` is set and valid
+- Provider credential decryption succeeds (`ENCRYPTION_KEY` matches)
+- `/v1/health/providers` shows provider status
+- Routing fallback classification in `src/modules/routing/service/error-classifier.ts`
 
-- provider adapter mapping
-- provider credential decryption
-- provider health state
-- fallback classification
+Error categories and their routing behavior:
+| Category | Retryable | Fallback? |
+|---|---|---|
+| `upstream_5xx` | Yes | Falls to next provider |
+| `timeout` | Yes | Falls to next provider |
+| `rate_limited` | Yes | Falls to next provider |
+| `bad_credential` | No | Fails immediately |
+| `invalid_request` | No | Fails immediately |
 
-### Rate Limit Failures
+### Rate Limit Failures (429)
 
-Symptoms:
-
-- repeated 429 responses
+Symptoms: repeated 429 responses.
 
 Check:
+- Default: 100 requests per 60-second window per project
+- `x-ratelimit-remaining` header shows remaining quota
+- `x-ratelimit-reset` header shows seconds until window resets
+- If Redis is down, rate limiting degrades to open gate (allows all requests)
 
-- Redis connectivity
-- project rate limit policy
-- keying strategy for counters
+### Health Probe Issues
+
+Symptoms: `/v1/health/providers` shows unexpected status.
+
+| Status | Meaning | Action |
+|---|---|---|
+| `healthy` | Probe succeeded with real credential | Normal operation |
+| `degraded` | Probe ran but upstream reported issues | Check Brave API status; routing will skip this provider |
+| `unavailable` | No credential to probe with | Set `BRAVE_API_KEY`; routing treats as optimistic OK |
+
+Health probes are cached for 30 seconds and bounded to 10 seconds per provider.
 
 ### Architecture Check Failures
 
-Symptoms:
-
-- `scripts/check-architecture.sh` fails
+Symptoms: `scripts/check-architecture.sh` fails.
 
 Check:
+- Direct transport-to-repository dependencies
+- Service references to HTTP response objects
+- Misplaced provider-specific schemas
 
-- direct transport-to-repository dependencies
-- service references to HTTP response objects
-- misplaced provider-specific schemas
+## Logging
 
-## Logging Expectations
+Structured JSON logs (via Pino) include:
+- `reqId` — request identifier
+- `usageEvent.projectId` — project tenant
+- `usageEvent.capability` — search type
+- `usageEvent.provider` — selected provider
+- `usageEvent.fallbackCount` — number of fallback attempts
+- `auditEntry.action` — security/operational event
 
-Logs should make these fields visible:
-
-- request id
-- project id
-- capability
-- selected provider
-- fallback count
-- error code
-
-Sensitive data must remain redacted.
+Sensitive data (credentials, API keys) is never logged.
