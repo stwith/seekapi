@@ -3,19 +3,17 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import type { ProviderRegistry } from "../../../providers/core/registry.js";
+import type { HealthService } from "../service/health-service.js";
 
 export interface HealthRouteDeps {
-  registry?: ProviderRegistry;
-  /** Resolve a credential for health-checking a provider. */
-  resolveHealthCredential?: (provider: string) => Promise<string | undefined>;
+  healthService?: HealthService;
 }
 
 /**
  * Register health endpoints.
  *
- * - GET /v1/health — gateway readiness (always available)
- * - GET /v1/health/providers — per-provider health status
+ * - GET /v1/health — gateway readiness (always available, public)
+ * - GET /v1/health/providers — per-provider health status (requires auth)
  */
 export async function registerHealthRoutes(
   app: FastifyInstance,
@@ -29,37 +27,19 @@ export async function registerHealthRoutes(
     });
   });
 
-  // Provider health — reports each registered provider's health status
+  // Provider health — delegates to HealthService (cached, avoids repeated upstream probes)
   app.get("/v1/health/providers", async (_req, reply) => {
-    if (!deps?.registry) {
+    if (!deps?.healthService) {
       return reply.send({ providers: [] });
     }
 
-    const adapters = deps.registry.list();
-    const results = await Promise.all(
-      adapters.map(async (adapter) => {
-        try {
-          const credential = deps.resolveHealthCredential
-            ? await deps.resolveHealthCredential(adapter.id)
-            : undefined;
-          const health = await adapter.healthCheck({ credential });
-          return {
-            provider: adapter.id,
-            status: health.status,
-            latency_ms: health.latencyMs ?? null,
-            checked_at: health.checkedAt.toISOString(),
-          };
-        } catch {
-          return {
-            provider: adapter.id,
-            status: "unavailable" as const,
-            latency_ms: null,
-            checked_at: new Date().toISOString(),
-          };
-        }
-      }),
-    );
-
-    return reply.send({ providers: results });
+    const results = await deps.healthService.getProviderHealth();
+    const providers = results.map((r) => ({
+      provider: r.provider,
+      status: r.status,
+      latency_ms: r.latencyMs,
+      checked_at: r.checkedAt,
+    }));
+    return reply.send({ providers });
   });
 }

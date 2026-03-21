@@ -4,7 +4,7 @@ import type { RateLimitService } from "../service/rate-limit-service.js";
 import type { ProjectContext } from "../../projects/service/project-service.js";
 
 /** Paths that bypass API key authentication. */
-const PUBLIC_PATHS = new Set(["/v1/health", "/v1/health/providers"]);
+const PUBLIC_PATHS = new Set(["/v1/health"]);
 
 /** Extend Fastify request to carry the resolved project context. */
 declare module "fastify" {

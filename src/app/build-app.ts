@@ -13,6 +13,7 @@ import {
   createRedisClient,
   createInMemoryRedisClient,
 } from "../infra/redis/client.js";
+import { HealthService } from "../modules/health/service/health-service.js";
 
 export interface AppOptions {
   logger?: boolean | object;
@@ -39,18 +40,20 @@ export async function buildApp(
   // Credential resolution [AC4]
   const credentialService = new CredentialService();
 
-  // Health endpoints — available before auth
-  await registerHealthRoutes(app, {
+  // Health service — caches provider probes to avoid upstream quota burn
+  const healthService = new HealthService({
     registry,
     resolveHealthCredential: async (provider) => {
       try {
-        // Use demo project credentials for health probes
         return await credentialService.resolve("proj_demo_001", provider);
       } catch {
         return undefined;
       }
     },
   });
+
+  // Health endpoints — /v1/health is public, /v1/health/providers requires auth
+  await registerHealthRoutes(app, { healthService });
 
   // Search service with real provider wiring [AC4]
   const searchService = new SearchService({
@@ -87,6 +90,11 @@ export async function buildApp(
 
   // Canonical search endpoints [AC3]
   await registerCapabilityRoutes(app, { searchService, usageService, auditService });
+
+  // Close Redis connection on app shutdown to prevent connection leaks
+  app.addHook("onClose", async () => {
+    await redis.quit();
+  });
 
   return app;
 }

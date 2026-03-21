@@ -1,18 +1,22 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerHealthRoutes } from "../../src/modules/health/http/routes.js";
+import { HealthService } from "../../src/modules/health/service/health-service.js";
 import { ProviderRegistry } from "../../src/providers/core/registry.js";
 import { BraveAdapter } from "../../src/providers/brave/adapter.js";
 
 describe("Health routes", () => {
   let app: FastifyInstance;
-  let registry: ProviderRegistry;
 
   beforeAll(async () => {
     app = Fastify({ logger: false });
-    registry = new ProviderRegistry();
+    const registry = new ProviderRegistry();
     registry.register(new BraveAdapter());
-    await registerHealthRoutes(app, { registry });
+    const healthService = new HealthService({
+      registry,
+      resolveHealthCredential: async () => undefined,
+    });
+    await registerHealthRoutes(app, { healthService });
     await app.ready();
   });
 
@@ -47,7 +51,7 @@ describe("Health routes", () => {
     expect(body.providers[0].checked_at).toBeDefined();
   });
 
-  it("provider health endpoint returns empty list without registry", async () => {
+  it("provider health endpoint returns empty list without healthService", async () => {
     const bareApp = Fastify({ logger: false });
     await registerHealthRoutes(bareApp);
     await bareApp.ready();
@@ -61,5 +65,49 @@ describe("Health routes", () => {
     expect(res.json().providers).toEqual([]);
 
     await bareApp.close();
+  });
+});
+
+describe("HealthService caching", () => {
+  it("caches provider health results within TTL", async () => {
+    let probeCount = 0;
+    const registry = new ProviderRegistry();
+    registry.register(new BraveAdapter());
+    const service = new HealthService({
+      registry,
+      resolveHealthCredential: async () => {
+        probeCount++;
+        return undefined;
+      },
+      cacheTtlMs: 60_000,
+    });
+
+    await service.getProviderHealth();
+    await service.getProviderHealth();
+    await service.getProviderHealth();
+
+    // Only one probe despite three calls
+    expect(probeCount).toBe(1);
+  });
+
+  it("re-probes after cache expires", async () => {
+    let probeCount = 0;
+    const registry = new ProviderRegistry();
+    registry.register(new BraveAdapter());
+    const service = new HealthService({
+      registry,
+      resolveHealthCredential: async () => {
+        probeCount++;
+        return undefined;
+      },
+      cacheTtlMs: 1, // 1ms TTL — expires immediately
+    });
+
+    await service.getProviderHealth();
+    // Wait for cache to expire
+    await new Promise((r) => setTimeout(r, 10));
+    await service.getProviderHealth();
+
+    expect(probeCount).toBe(2);
   });
 });
