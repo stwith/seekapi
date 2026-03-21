@@ -6,6 +6,10 @@
  * never handles plaintext secrets.
  */
 
+import { eq, and } from "drizzle-orm";
+import type { DbClient } from "../client.js";
+import { providerCredentials } from "../schema/provider-credentials.js";
+
 export interface CredentialRow {
   id: string;
   projectId: string;
@@ -42,5 +46,36 @@ export class InMemoryCredentialRepository implements CredentialRepository {
         c.provider === provider &&
         c.status === "active",
     );
+  }
+}
+
+/**
+ * Drizzle-backed implementation for production persistence. [AC1][AC2]
+ */
+export class DrizzleCredentialRepository implements CredentialRepository {
+  constructor(private readonly db: DbClient) {}
+
+  async findByProjectAndProvider(
+    projectId: string,
+    provider: string,
+  ): Promise<CredentialRow | undefined> {
+    const rows = await this.db
+      .select({
+        id: providerCredentials.id,
+        projectId: providerCredentials.projectId,
+        provider: providerCredentials.provider,
+        encryptedSecret: providerCredentials.encryptedSecret,
+        status: providerCredentials.status,
+      })
+      .from(providerCredentials)
+      .where(
+        and(
+          eq(providerCredentials.projectId, projectId),
+          eq(providerCredentials.provider, provider),
+          eq(providerCredentials.status, "active"),
+        ),
+      )
+      .limit(1);
+    return rows[0];
   }
 }

@@ -2,9 +2,9 @@ import { buildApp } from "./build-app.js";
 import { hashKey } from "../modules/auth/service/auth-service.js";
 import { encryptSecret } from "../modules/credentials/service/credential-service.js";
 import { createDbClient } from "../infra/db/client.js";
-import { InMemoryApiKeyRepository } from "../infra/db/repositories/api-key-repository.js";
-import { InMemoryProjectRepository } from "../infra/db/repositories/project-repository.js";
-import { InMemoryCredentialRepository } from "../infra/db/repositories/credential-repository.js";
+import { InMemoryApiKeyRepository, DrizzleApiKeyRepository } from "../infra/db/repositories/api-key-repository.js";
+import { InMemoryProjectRepository, DrizzleProjectRepository } from "../infra/db/repositories/project-repository.js";
+import { InMemoryCredentialRepository, DrizzleCredentialRepository } from "../infra/db/repositories/credential-repository.js";
 import { InMemoryUsageEventRepository, DrizzleUsageEventRepository } from "../infra/db/repositories/usage-event-repository.js";
 import { InMemoryAuditLogRepository, DrizzleAuditLogRepository } from "../infra/db/repositories/audit-log-repository.js";
 import { InMemoryHealthSnapshotRepository, DrizzleHealthSnapshotRepository } from "../infra/db/repositories/health-snapshot-repository.js";
@@ -12,9 +12,12 @@ import { InMemoryHealthSnapshotRepository, DrizzleHealthSnapshotRepository } fro
 /**
  * Bootstrap repositories from environment variables.
  *
- * When DATABASE_URL is set, usage events, audit logs, and health
- * snapshots are persisted to PostgreSQL via Drizzle. [AC3]
- * Otherwise falls back to in-memory for local dev / smoke tests.
+ * When DATABASE_URL is set, all repositories — including control-plane
+ * entities (API keys, projects, credentials, bindings) and observability
+ * stores (usage, audit, health) — use Drizzle-backed PostgreSQL. [AC1][AC2]
+ *
+ * When DATABASE_URL is not set, falls back to seed-based in-memory
+ * repositories for local dev, tests, and smoke runs.
  */
 function bootstrapFromEnv() {
   const encryptionKey = process.env["ENCRYPTION_KEY"];
@@ -24,6 +27,23 @@ function bootstrapFromEnv() {
     );
   }
 
+  const databaseUrl = process.env["DATABASE_URL"];
+
+  if (databaseUrl) {
+    // DB-backed path — all entities loaded from PostgreSQL [AC1][AC2]
+    const { db } = createDbClient(databaseUrl);
+    return {
+      apiKeyRepository: new DrizzleApiKeyRepository(db) as InstanceType<typeof DrizzleApiKeyRepository>,
+      projectRepository: new DrizzleProjectRepository(db) as InstanceType<typeof DrizzleProjectRepository>,
+      credentialRepository: new DrizzleCredentialRepository(db) as InstanceType<typeof DrizzleCredentialRepository>,
+      usageEventRepository: new DrizzleUsageEventRepository(db),
+      auditLogRepository: new DrizzleAuditLogRepository(db),
+      healthSnapshotRepository: new DrizzleHealthSnapshotRepository(db),
+      encryptionKey,
+    };
+  }
+
+  // In-memory path — seed-based bootstrap for local dev / smoke / tests
   const seedApiKey = process.env["SEED_API_KEY"] ?? "sk_test_seekapi_demo_key_001";
   const seedProjectId = process.env["SEED_PROJECT_ID"] ?? "proj_demo_001";
   const seedProjectName = process.env["SEED_PROJECT_NAME"] ?? "Demo Project";
@@ -60,22 +80,9 @@ function bootstrapFromEnv() {
     });
   }
 
-  // Observability repositories — DB-backed when DATABASE_URL is set [AC3]
-  const databaseUrl = process.env["DATABASE_URL"];
-  let usageEventRepository;
-  let auditLogRepository;
-  let healthSnapshotRepository;
-
-  if (databaseUrl) {
-    const { db } = createDbClient(databaseUrl);
-    usageEventRepository = new DrizzleUsageEventRepository(db);
-    auditLogRepository = new DrizzleAuditLogRepository(db);
-    healthSnapshotRepository = new DrizzleHealthSnapshotRepository(db);
-  } else {
-    usageEventRepository = new InMemoryUsageEventRepository();
-    auditLogRepository = new InMemoryAuditLogRepository();
-    healthSnapshotRepository = new InMemoryHealthSnapshotRepository();
-  }
+  const usageEventRepository = new InMemoryUsageEventRepository();
+  const auditLogRepository = new InMemoryAuditLogRepository();
+  const healthSnapshotRepository = new InMemoryHealthSnapshotRepository();
 
   return {
     apiKeyRepository,
@@ -96,10 +103,12 @@ async function main(): Promise<void> {
   const app = await buildApp({
     ...repos,
     // Use the seed project's credentials for health probes when BRAVE_API_KEY
-    // is set — this gives /v1/health/providers real Brave readiness data. [AC4]
-    healthProbeProjectId: process.env["BRAVE_API_KEY"]
-      ? (process.env["SEED_PROJECT_ID"] ?? "proj_demo_001")
-      : undefined,
+    // is set and running in in-memory mode. In DB-backed mode, health probes
+    // use HEALTH_PROBE_PROJECT_ID if configured. [AC4]
+    healthProbeProjectId: process.env["HEALTH_PROBE_PROJECT_ID"]
+      ?? (process.env["BRAVE_API_KEY"] && !process.env["DATABASE_URL"]
+        ? (process.env["SEED_PROJECT_ID"] ?? "proj_demo_001")
+        : undefined),
   });
 
   try {
