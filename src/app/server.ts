@@ -4,6 +4,9 @@ import { encryptSecret } from "../modules/credentials/service/credential-service
 import { InMemoryApiKeyRepository } from "../infra/db/repositories/api-key-repository.js";
 import { InMemoryProjectRepository } from "../infra/db/repositories/project-repository.js";
 import { InMemoryCredentialRepository } from "../infra/db/repositories/credential-repository.js";
+import { InMemoryUsageEventRepository } from "../infra/db/repositories/usage-event-repository.js";
+import { InMemoryAuditLogRepository } from "../infra/db/repositories/audit-log-repository.js";
+import { InMemoryHealthSnapshotRepository } from "../infra/db/repositories/health-snapshot-repository.js";
 
 /**
  * Bootstrap in-memory repositories from environment variables.
@@ -54,7 +57,19 @@ function bootstrapFromEnv() {
     });
   }
 
-  return { apiKeyRepository, projectRepository, credentialRepository, encryptionKey };
+  const usageEventRepository = new InMemoryUsageEventRepository();
+  const auditLogRepository = new InMemoryAuditLogRepository();
+  const healthSnapshotRepository = new InMemoryHealthSnapshotRepository();
+
+  return {
+    apiKeyRepository,
+    projectRepository,
+    credentialRepository,
+    usageEventRepository,
+    auditLogRepository,
+    healthSnapshotRepository,
+    encryptionKey,
+  };
 }
 
 async function main(): Promise<void> {

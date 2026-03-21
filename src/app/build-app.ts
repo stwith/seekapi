@@ -8,8 +8,8 @@ import { SearchService } from "../modules/capabilities/service/search-service.js
 import { ProviderRegistry } from "../providers/core/registry.js";
 import { BraveAdapter } from "../providers/brave/adapter.js";
 import { CredentialService } from "../modules/credentials/service/credential-service.js";
-import { UsageService, type UsageEventSink } from "../modules/usage/service/usage-service.js";
-import { AuditService, type AuditLogSink } from "../modules/audit/service/audit-service.js";
+import { UsageService } from "../modules/usage/service/usage-service.js";
+import { AuditService } from "../modules/audit/service/audit-service.js";
 import { RateLimitService } from "../modules/auth/service/rate-limit-service.js";
 import {
   createRedisClient,
@@ -19,6 +19,9 @@ import { HealthService } from "../modules/health/service/health-service.js";
 import type { ApiKeyRepository } from "../infra/db/repositories/api-key-repository.js";
 import type { ProjectRepository } from "../infra/db/repositories/project-repository.js";
 import type { CredentialRepository } from "../infra/db/repositories/credential-repository.js";
+import type { UsageEventRepository } from "../infra/db/repositories/usage-event-repository.js";
+import type { AuditLogRepository } from "../infra/db/repositories/audit-log-repository.js";
+import type { HealthSnapshotRepository } from "../infra/db/repositories/health-snapshot-repository.js";
 
 export interface AppOptions {
   logger?: boolean | object;
@@ -28,6 +31,12 @@ export interface AppOptions {
   projectRepository: ProjectRepository;
   /** Repository for provider credential lookups. Required. */
   credentialRepository: CredentialRepository;
+  /** Repository for persisting usage events. Required. [AC3] */
+  usageEventRepository: UsageEventRepository;
+  /** Repository for persisting audit log entries. Required. [AC3] */
+  auditLogRepository: AuditLogRepository;
+  /** Repository for persisting health snapshots. Required. [AC3] */
+  healthSnapshotRepository: HealthSnapshotRepository;
   /** Hex-encoded 32-byte key for credential encryption. Required. */
   encryptionKey: string;
 }
@@ -50,6 +59,9 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     apiKeyRepository,
     projectRepository,
     credentialRepository,
+    usageEventRepository,
+    auditLogRepository,
+    healthSnapshotRepository,
     encryptionKey,
   } = opts;
 
@@ -78,6 +90,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       // dedicated health-probe project) belongs in Task 15.
       return undefined;
     },
+    snapshotSink: healthSnapshotRepository,
   });
 
   // Health endpoints — /v1/health is public, /v1/health/providers requires auth
@@ -91,21 +104,11 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     health: healthService,
   });
 
-  // Usage event recording
-  const usageEventSink: UsageEventSink = {
-    async record(event) {
-      app.log.info({ usageEvent: event }, "usage event recorded");
-    },
-  };
-  const usageService = new UsageService(usageEventSink);
+  // Usage event recording — repository-backed [AC3]
+  const usageService = new UsageService(usageEventRepository);
 
-  // Audit log recording
-  const auditLogSink: AuditLogSink = {
-    async record(entry) {
-      app.log.info({ auditEntry: entry }, "audit event recorded");
-    },
-  };
-  const auditService = new AuditService(auditLogSink);
+  // Audit log recording — repository-backed [AC3]
+  const auditService = new AuditService(auditLogRepository);
 
   // Rate limiting — real Redis when REDIS_URL is set, in-memory stub otherwise
   const redisUrl = process.env["REDIS_URL"];

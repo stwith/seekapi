@@ -7,6 +7,7 @@
  */
 
 import type { ProviderRegistry } from "../../../providers/core/registry.js";
+import type { HealthSnapshotSink } from "../../../infra/db/repositories/health-snapshot-repository.js";
 
 export interface ProviderHealthResult {
   provider: string;
@@ -19,6 +20,8 @@ export interface HealthServiceDeps {
   registry: ProviderRegistry;
   /** Resolve a credential for health-checking a provider. */
   resolveHealthCredential: (provider: string) => Promise<string | undefined>;
+  /** Sink for persisting health probe snapshots. [AC3] */
+  snapshotSink?: HealthSnapshotSink;
   /** Cache TTL in milliseconds. Defaults to 30 000 (30 s). */
   cacheTtlMs?: number;
 }
@@ -87,6 +90,12 @@ export class HealthService {
 
     this.cachedSnapshot = results;
     this.cachedAt = Date.now();
+
+    // Persist snapshots if a sink is configured [AC3]
+    if (this.deps.snapshotSink) {
+      await this.deps.snapshotSink.recordBatch(results);
+    }
+
     return results;
   }
 }
