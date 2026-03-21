@@ -6,6 +6,7 @@ import {
   type RoutingConfig,
 } from "../../src/modules/routing/service/routing-service.js";
 import { classifyError } from "../../src/modules/routing/service/error-classifier.js";
+import { ProviderError } from "../../src/providers/core/errors.js";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -121,7 +122,7 @@ describe("RoutingService.executeWithFallback", () => {
     expect(executeFn).toHaveBeenCalledTimes(1);
   });
 
-  it("explicit provider is tried first in fallback chain", async () => {
+  it("explicit provider is used without fallback on success", async () => {
     const svc = makeService();
     const executeFn = vi.fn().mockResolvedValueOnce("ok-from-bing");
 
@@ -133,6 +134,30 @@ describe("RoutingService.executeWithFallback", () => {
 
     expect(result).toBe("ok-from-bing");
     expect(executeFn).toHaveBeenCalledWith("bing");
+  });
+
+  it("explicit provider fails fast on retryable error (no fallback)", async () => {
+    const svc = makeService();
+    const retryableErr = Object.assign(new Error("upstream"), { statusCode: 502 });
+    const executeFn = vi.fn().mockRejectedValueOnce(retryableErr);
+
+    await expect(
+      svc.executeWithFallback("search.web", "bing", executeFn),
+    ).rejects.toThrow("upstream");
+
+    // Only tried once — no fallback for explicit provider
+    expect(executeFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("explicit provider throws RoutingError when unhealthy", async () => {
+    const svc = makeService({ bing: false });
+    const executeFn = vi.fn();
+
+    await expect(
+      svc.executeWithFallback("search.web", "bing", executeFn),
+    ).rejects.toThrow(RoutingError);
+
+    expect(executeFn).not.toHaveBeenCalled();
   });
 
   it("skips unhealthy providers in fallback chain", async () => {
@@ -230,5 +255,40 @@ describe("classifyError", () => {
     const result = classifyError(new Error("something"));
     expect(result.category).toBe("unknown");
     expect(result.retryable).toBe(false);
+  });
+
+  it("honours ProviderError timeout as retryable", () => {
+    const err = new ProviderError({
+      message: "request timed out",
+      category: "timeout",
+      provider: "brave",
+    });
+    const result = classifyError(err);
+    expect(result.category).toBe("retryable");
+    expect(result.retryable).toBe(true);
+  });
+
+  it("honours ProviderError bad_credential as auth (non-retryable)", () => {
+    const err = new ProviderError({
+      message: "invalid api key",
+      category: "bad_credential",
+      provider: "brave",
+      statusCode: 401,
+    });
+    const result = classifyError(err);
+    expect(result.category).toBe("auth");
+    expect(result.retryable).toBe(false);
+  });
+
+  it("honours ProviderError upstream_5xx as retryable", () => {
+    const err = new ProviderError({
+      message: "internal server error",
+      category: "upstream_5xx",
+      provider: "brave",
+      statusCode: 500,
+    });
+    const result = classifyError(err);
+    expect(result.category).toBe("retryable");
+    expect(result.retryable).toBe(true);
   });
 });

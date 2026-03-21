@@ -95,23 +95,26 @@ export class RoutingService {
 
   /**
    * Execute a request with fallback on retryable errors.
-   * `executeFn` is called with the selected provider; if it throws a
-   * retryable error, the next fallback provider is tried.
+   *
+   * When an explicit provider is requested, it is used without fallback —
+   * any error (retryable or not) is propagated immediately. Fallback only
+   * applies to the default → fallback chain when no explicit provider is set.
    */
   async executeWithFallback<T>(
     capability: Capability,
     explicitProvider: string | undefined,
     executeFn: (providerId: string) => Promise<T>,
   ): Promise<T> {
+    // Explicit provider: fail fast, no fallback
+    if (explicitProvider) {
+      const route = this.selectProvider(capability, explicitProvider);
+      return executeFn(route.providerId);
+    }
+
+    // Default + fallback chain
     const allowed = new Set(this.config.allowedProviders());
     const tried = new Set<string>();
-
-    // Build ordered candidate list
-    const candidates = this.buildCandidateList(
-      capability,
-      explicitProvider,
-      allowed,
-    );
+    const candidates = this.buildFallbackCandidates(capability, allowed);
 
     let lastError: unknown;
 
@@ -139,22 +142,12 @@ export class RoutingService {
     );
   }
 
-  private buildCandidateList(
+  /** Build default + fallback candidate list (no explicit provider). */
+  private buildFallbackCandidates(
     capability: Capability,
-    explicitProvider: string | undefined,
     allowed: Set<string>,
   ): RouteResult[] {
     const candidates: RouteResult[] = [];
-
-    if (explicitProvider) {
-      if (!allowed.has(explicitProvider)) {
-        throw new RoutingError(
-          `Provider "${explicitProvider}" is not allowed for this project`,
-          "PROVIDER_NOT_ALLOWED",
-        );
-      }
-      candidates.push({ providerId: explicitProvider, reason: "explicit" });
-    }
 
     const defaultId = this.config.defaultProvider(capability);
     if (defaultId && allowed.has(defaultId)) {

@@ -4,6 +4,8 @@
  * Non-retryable errors (auth, invalid request) do not.
  */
 
+import { ProviderError } from "../../../providers/core/errors.js";
+
 export type ErrorCategory =
   | "retryable"
   | "auth"
@@ -21,11 +23,21 @@ export interface ClassifiedError {
 /**
  * Classify an error thrown by a provider adapter.
  *
- * Convention: provider adapters throw errors with optional properties:
- * - `statusCode` (number): upstream HTTP status
- * - `code` (string): semantic error code like "AUTH_FAILED", "RATE_LIMITED"
+ * If the error is a typed ProviderError (from provider adapters), we honour
+ * its `category` and `retryable` fields directly. Otherwise we fall back to
+ * heuristic classification via `statusCode` / `code` properties.
  */
 export function classifyError(err: unknown): ClassifiedError {
+  // Fast path: typed ProviderError from adapter layer
+  if (err instanceof ProviderError) {
+    return {
+      category: mapProviderCategory(err.category),
+      retryable: err.retryable,
+      original: err,
+    };
+  }
+
+  // Heuristic path for non-ProviderError exceptions
   const statusCode = getStatusCode(err);
   const code = getErrorCode(err);
 
@@ -66,6 +78,24 @@ export function classifyError(err: unknown): ClassifiedError {
 
   // Unknown errors default to non-retryable
   return { category: "unknown", retryable: false, original: err };
+}
+
+/** Map ProviderError categories to our classifier categories. */
+function mapProviderCategory(
+  category: import("../../../providers/core/errors.js").ProviderErrorCategory,
+): ErrorCategory {
+  switch (category) {
+    case "bad_credential":
+      return "auth";
+    case "invalid_request":
+      return "invalid_request";
+    case "upstream_5xx":
+    case "timeout":
+    case "rate_limited":
+      return "retryable";
+    case "unknown":
+      return "unknown";
+  }
 }
 
 function getStatusCode(err: unknown): number | undefined {
