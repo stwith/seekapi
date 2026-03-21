@@ -116,5 +116,6 @@ The helper prints the exact repair prompt Claude should follow for that PR.
 - [docs/debugging.md](./docs/debugging.md) - Debugging workflow
 - [docs/plans/2026-03-20-local-dev-checklist.md](./docs/plans/2026-03-20-local-dev-checklist.md) - Local dev setup and verification
 - [docs/plans/2026-03-21-seekapi-phase-2-plan.md](./docs/plans/2026-03-21-seekapi-phase-2-plan.md) - Phase 2 implementation target
+- [docs/plans/2026-03-21-seekapi-phase-2-5-plan.md](./docs/plans/2026-03-21-seekapi-phase-2-5-plan.md) - Phase 2.5 Brave-only key distribution target
 - [docs/plans/2026-03-21-seekapi-phase-3-plan.md](./docs/plans/2026-03-21-seekapi-phase-3-plan.md) - Phase 3 multi-provider expansion target
 - [docs/plans/](./docs/plans/) - Active implementation plans

@@ -12,6 +12,8 @@ Primary stack:
 - PostgreSQL
 - Redis
 
+Package manager: **pnpm** (not npm or yarn). All scripts, CI, and documentation use `pnpm`.
+
 ## Module Boundaries
 
 Top-level responsibilities:

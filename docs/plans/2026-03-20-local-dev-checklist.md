@@ -10,7 +10,7 @@ How to run SeekAPI locally, seed demo data, and verify the Brave search path end
 ## 2. Install Dependencies
 
 ```bash
-npm install
+pnpm install
 ```
 
 ## 3. Set Environment Variables
@@ -22,7 +22,7 @@ cp .env.example .env
 # Edit .env with your actual values
 ```
 
-The `npm run dev`, `npm start`, `npm run db:generate`, and `npm run db:migrate` scripts automatically load `.env` via Node's `--env-file-if-exists` flag. No manual `source` or `export` is needed.
+The `pnpm run dev`, `pnpm start`, `pnpm run db:generate`, and `pnpm run db:migrate` scripts automatically load `.env` via Node's `--env-file-if-exists` flag. No manual `source` or `export` is needed.
 
 | Variable | Required | Description | Default |
 |---|---|---|---|
@@ -67,7 +67,7 @@ docker run -d --name seekapi-redis -p 6379:6379 redis:7
 If using PostgreSQL, run migrations:
 
 ```bash
-npm run db:migrate
+pnpm run db:migrate
 ```
 
 ## 5. Bootstrap Flow
@@ -84,10 +84,10 @@ The server (`server.ts`) auto-seeds on startup — no manual seeding needed:
 
 ```bash
 # Development mode (hot reload)
-npm run dev
+pnpm run dev
 
 # Or production mode
-npm run build && npm start
+pnpm run build && pnpm start
 ```
 
 The server starts on `http://localhost:3000` by default.
@@ -154,10 +154,10 @@ bash scripts/validate.sh
 
 This runs, in order:
 
-1. **Lint** — `npm run lint`
-2. **Type-check** — `npm run typecheck`
-3. **Tests** — `npm test` (185+ tests across 20 files)
-4. **Build** — `npm run build`
+1. **Lint** — `pnpm run lint`
+2. **Type-check** — `pnpm run typecheck`
+3. **Tests** — `pnpm test` (185+ tests across 20 files)
+4. **Build** — `pnpm run build`
 5. **Architecture checks** — `bash scripts/check-architecture.sh`
 6. **AC coverage checks** — `bash scripts/check-ac-coverage.sh`
 7. **Smoke checks** — `bash scripts/smoke.sh` (builds, starts server, hits `/v1/health`)
@@ -174,7 +174,7 @@ export ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000
 export BRAVE_API_KEY=BSA...your-key...
 
 # 2. Start server
-npm run dev &
+pnpm run dev &
 sleep 2
 
 # 3. Gateway health (no auth)
@@ -224,7 +224,7 @@ done | sort | uniq -c
 | `401 UNAUTHORIZED` | Missing or wrong API key | Use `Authorization: Bearer sk_test_seekapi_demo_key_001` |
 | `429 RATE_LIMITED` | Too many requests | Wait for window reset (~60s), or restart (in-memory rate limiter resets on restart) |
 | Brave returns empty results | Invalid `BRAVE_API_KEY` | Set a valid key in `.env` |
-| `ECONNREFUSED` on port 3000 | Server not running | Run `npm run dev` |
+| `ECONNREFUSED` on port 3000 | Server not running | Run `pnpm run dev` |
 | Redis connection error | `REDIS_URL` set but Redis not running | Start Redis or unset `REDIS_URL` (falls back to in-memory) |
 | Health providers shows `"unavailable"` | `BRAVE_API_KEY` not set | Set `BRAVE_API_KEY` to enable real health probes |
 | Health providers shows `"degraded"` | Brave API returning errors | Check `BRAVE_API_KEY` validity / Brave API status |
