@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 
 const NAV_ITEMS = [
@@ -18,11 +18,39 @@ interface ShellProps {
 }
 
 export function Shell({ onLogout, children }: ShellProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div className="flex min-h-screen font-sans bg-gray-950 text-gray-200">
+      {/* Mobile hamburger */}
+      <button
+        data-testid="sidebar-toggle"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="md:hidden fixed top-3 left-3 z-50 p-2 bg-gray-800 rounded text-gray-300"
+        aria-label="Toggle sidebar"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      {/* Backdrop for mobile */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-30 bg-black/50"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
       <nav
         data-testid="nav-sidebar"
-        className="w-52 bg-sidebar flex flex-col py-4"
+        className={`
+          fixed md:static z-40 h-full md:h-auto
+          w-52 bg-sidebar flex flex-col py-4
+          transition-transform md:translate-x-0
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
       >
         <div className="px-4 pb-4 font-bold text-sm text-gray-100">
           SeekAPI Console
@@ -32,6 +60,7 @@ export function Shell({ onLogout, children }: ShellProps) {
             key={item.to}
             to={item.to}
             end={item.to === "/"}
+            onClick={() => setSidebarOpen(false)}
             className={({ isActive }) =>
               `block px-4 py-2 text-sm no-underline transition-colors ${
                 isActive
@@ -51,7 +80,7 @@ export function Shell({ onLogout, children }: ShellProps) {
           Disconnect
         </button>
       </nav>
-      <main className="flex-1 p-6">{children}</main>
+      <main className="flex-1 p-6 md:p-6 pt-14 md:pt-6">{children}</main>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { Dashboard } from "../routes/dashboard/Dashboard.js";
 import { KeysPage } from "../routes/keys/KeysPage.js";
 import { UsagePage } from "../routes/usage/UsagePage.js";
 import { SubscriptionsPage } from "../routes/subscriptions/SubscriptionsPage.js";
+import { ErrorBoundary } from "../components/ui/index.js";
 
 export function App() {
   const [adminKey, setAdminKey] = useState(
@@ -31,6 +32,7 @@ export function App() {
   return (
     <BrowserRouter>
       <Shell adminKey={adminKey} onLogout={() => handleSetAdminKey("")}>
+        <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Overview adminKey={adminKey} />} />
           <Route path="/dashboard" element={<Dashboard adminKey={adminKey} />} />
@@ -42,6 +44,7 @@ export function App() {
           <Route path="/flow-runner" element={<FlowRunner adminKey={adminKey} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ErrorBoundary>
       </Shell>
     </BrowserRouter>
   );
