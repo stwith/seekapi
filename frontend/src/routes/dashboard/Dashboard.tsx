@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "../../lib/api.js";
-import type { DashboardStats, TimeSeriesPoint, CapabilityBreakdown } from "../../lib/api.js";
+import type { DashboardStats, TimeSeriesPoint, CapabilityBreakdown, Project } from "../../lib/api.js";
 import { StatCard, LoadingSpinner } from "../../components/ui/index.js";
 
 interface DashboardProps {
@@ -11,23 +11,69 @@ export function Dashboard({ adminKey }: DashboardProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [series, setSeries] = useState<TimeSeriesPoint[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilityBreakdown[]>([]);
+  const [activeKeyCount, setActiveKeyCount] = useState(0);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Load projects once
   useEffect(() => {
-    Promise.all([
-      api.getDashboardStats(adminKey),
-      api.getTimeSeries(adminKey, { granularity: "hour" }),
-      api.getCapabilityBreakdown(adminKey),
-    ])
-      .then(([s, ts, cb]) => {
-        setStats(s);
-        setSeries(ts.series);
-        setCapabilities(cb.capabilities);
-      })
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
+    api.listProjects(adminKey).then(setProjects).catch(() => {});
   }, [adminKey]);
+
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (selectedProject) params.projectId = selectedProject;
+
+      const [s, ts, cb] = await Promise.all([
+        api.getDashboardStats(adminKey, Object.keys(params).length > 0 ? params : undefined),
+        api.getTimeSeries(adminKey, { granularity: "hour", ...params }),
+        api.getCapabilityBreakdown(adminKey, Object.keys(params).length > 0 ? params : undefined),
+      ]);
+      setStats(s);
+      setSeries(ts.series);
+      setCapabilities(cb.capabilities);
+      setError(null);
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [adminKey, selectedProject]);
+
+  // Load active key count
+  useEffect(() => {
+    (async () => {
+      try {
+        const projs = await api.listProjects(adminKey);
+        const targetProjs = selectedProject
+          ? projs.filter((p) => p.id === selectedProject)
+          : projs;
+
+        let count = 0;
+        await Promise.all(
+          targetProjs.map(async (p) => {
+            try {
+              const keys = await api.listProjectKeys(adminKey, p.id);
+              count += keys.filter((k) => k.status === "active").length;
+            } catch {
+              // skip
+            }
+          }),
+        );
+        setActiveKeyCount(count);
+      } catch {
+        // non-critical
+      }
+    })();
+  }, [adminKey, selectedProject]);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
 
   if (loading) return <LoadingSpinner label="Loading dashboard..." />;
   if (error) return <p className="text-red-400">{error}</p>;
@@ -39,14 +85,28 @@ export function Dashboard({ adminKey }: DashboardProps) {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-white mb-6">Dashboard</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold text-white">Dashboard</h1>
+        <select
+          data-testid="project-filter"
+          value={selectedProject}
+          onChange={(e) => setSelectedProject(e.target.value)}
+          className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
+        >
+          <option value="">All projects</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </div>
 
       {/* Stats cards */}
-      <div data-testid="stats-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div data-testid="stats-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <StatCard label="Total Requests" value={stats.totalRequests} accent="teal" />
         <StatCard label="Success Rate" value={`${successRate}%`} accent="teal" />
         <StatCard label="Failures" value={stats.failureCount} accent={stats.failureCount > 0 ? "red" : "gray"} />
         <StatCard label="Avg Latency" value={`${Math.round(stats.avgLatencyMs)}ms`} accent="orange" />
+        <StatCard label="Active Keys" value={activeKeyCount} accent="teal" />
       </div>
 
       {/* Time series (text-based chart) */}

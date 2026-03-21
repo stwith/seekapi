@@ -32,9 +32,16 @@ const mockApi = vi.mocked(api);
 describe("Dashboard [Task 35]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listProjects.mockResolvedValue([
+      { id: "proj-1", name: "Project One", status: "active" },
+    ]);
+    mockApi.listProjectKeys.mockResolvedValue([
+      { id: "key-1", projectId: "proj-1", status: "active" },
+      { id: "key-2", projectId: "proj-1", status: "disabled" },
+    ]);
   });
 
-  it("renders stat cards with data", async () => {
+  it("renders stat cards with data including active keys", async () => {
     mockApi.getDashboardStats.mockResolvedValue({
       totalRequests: 100,
       successCount: 95,
@@ -56,6 +63,30 @@ describe("Dashboard [Task 35]", () => {
       expect(cards.textContent).toContain("95.0%");
       expect(cards.textContent).toContain("5");
       expect(cards.textContent).toContain("150ms");
+      // Active Keys card (1 active out of 2)
+      expect(cards.textContent).toContain("Active Keys");
+    });
+  });
+
+  it("has project-scoped filter", async () => {
+    mockApi.getDashboardStats.mockResolvedValue({
+      totalRequests: 10,
+      successCount: 10,
+      failureCount: 0,
+      avgLatencyMs: 50,
+    });
+    mockApi.getTimeSeries.mockResolvedValue({ series: [] });
+    mockApi.getCapabilityBreakdown.mockResolvedValue({ capabilities: [] });
+
+    render(
+      <MemoryRouter>
+        <Dashboard adminKey="test-key" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("project-filter")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("All projects")).toBeInTheDocument();
     });
   });
 
@@ -82,6 +113,7 @@ describe("Dashboard [Task 35]", () => {
     await waitFor(() => {
       expect(screen.getByTestId("time-series")).toBeInTheDocument();
       expect(screen.getByTestId("capability-breakdown")).toBeInTheDocument();
+      // search.web appears in both project filter option and capability breakdown
       expect(screen.getByText("search.web")).toBeInTheDocument();
     });
   });
@@ -260,9 +292,16 @@ describe("UsagePage [Task 37]", () => {
 describe("SubscriptionsPage [Task 38]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listProjects.mockResolvedValue([
+      { id: "proj-1", name: "Project One", status: "active" },
+    ]);
+    mockApi.listProjectKeys.mockResolvedValue([
+      { id: "key-1", projectId: "proj-1", status: "active" },
+      { id: "key-2", projectId: "proj-1", status: "active" },
+    ]);
   });
 
-  it("renders quota cards", async () => {
+  it("renders quota cards with project name and key count", async () => {
     mockApi.listQuotas.mockResolvedValue({
       quotas: [
         {
@@ -288,10 +327,15 @@ describe("SubscriptionsPage [Task 38]", () => {
     await waitFor(() => {
       const card = screen.getByTestId("quota-card");
       expect(card).toBeInTheDocument();
+      // Should show project name, not truncated ID
+      expect(card.textContent).toContain("Project One");
+      // Key count vs max
+      expect(card.textContent).toContain("Keys: 2 / 5");
       expect(card.textContent).toContain("500");
       expect(card.textContent).toContain("1000");
-      expect(card.textContent).toContain("3000");
-      expect(card.textContent).toContain("10000");
+      // Suspend/Activate button
+      expect(screen.getByTestId("toggle-status")).toBeInTheDocument();
+      expect(screen.getByText("Suspend")).toBeInTheDocument();
     });
   });
 

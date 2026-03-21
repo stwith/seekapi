@@ -1,10 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../lib/api.js";
-import type { ProjectQuota } from "../../lib/api.js";
-import { LoadingSpinner, EmptyState, StatusBadge, Modal } from "../../components/ui/index.js";
+import type { ProjectQuota, Project } from "../../lib/api.js";
+import { LoadingSpinner, EmptyState, StatusBadge, Modal, ConfirmDialog } from "../../components/ui/index.js";
 
 interface SubscriptionsPageProps {
   adminKey: string;
+}
+
+interface EnrichedQuota extends ProjectQuota {
+  projectName: string;
+  currentKeyCount: number;
 }
 
 function usagePercent(current: number, limit: number | null): number | null {
@@ -19,14 +24,22 @@ function barColor(pct: number | null): string {
   return "bg-primary-500";
 }
 
-function QuotaCard({ quota, onEdit }: { quota: ProjectQuota; onEdit: () => void }) {
+function QuotaCard({
+  quota,
+  onEdit,
+  onToggleStatus,
+}: {
+  quota: EnrichedQuota;
+  onEdit: () => void;
+  onToggleStatus: () => void;
+}) {
   const dailyPct = usagePercent(quota.currentDailyUsage, quota.dailyRequestLimit);
   const monthlyPct = usagePercent(quota.currentMonthlyUsage, quota.monthlyRequestLimit);
 
   return (
     <div data-testid="quota-card" className="bg-gray-800 rounded-lg p-4 border border-gray-700">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white truncate">{quota.projectId.slice(0, 12)}...</h3>
+        <h3 className="text-sm font-semibold text-white truncate">{quota.projectName}</h3>
         <StatusBadge variant={quota.status === "active" ? "active" : "suspended"} />
       </div>
 
@@ -63,31 +76,71 @@ function QuotaCard({ quota, onEdit }: { quota: ProjectQuota; onEdit: () => void 
       </div>
 
       <div className="text-xs text-gray-500 mb-3">
-        Max Keys: {quota.maxKeys} &middot; RPM: {quota.rateLimitRpm}
+        Keys: {quota.currentKeyCount} / {quota.maxKeys} &middot; RPM: {quota.rateLimitRpm}
       </div>
 
-      <button
-        onClick={onEdit}
-        className="w-full px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-sm rounded text-gray-200"
-      >
-        Edit Quota
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={onEdit}
+          className="flex-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-sm rounded text-gray-200"
+        >
+          Edit Quota
+        </button>
+        <button
+          data-testid="toggle-status"
+          onClick={onToggleStatus}
+          className={`flex-1 px-3 py-1.5 text-sm rounded ${
+            quota.status === "active"
+              ? "bg-red-900/50 hover:bg-red-800 text-red-300"
+              : "bg-green-900/50 hover:bg-green-800 text-green-300"
+          }`}
+        >
+          {quota.status === "active" ? "Suspend" : "Activate"}
+        </button>
+      </div>
     </div>
   );
 }
 
 export function SubscriptionsPage({ adminKey }: SubscriptionsPageProps) {
-  const [quotas, setQuotas] = useState<ProjectQuota[]>([]);
+  const [quotas, setQuotas] = useState<EnrichedQuota[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<ProjectQuota | null>(null);
+  const [editing, setEditing] = useState<EnrichedQuota | null>(null);
   const [form, setForm] = useState({ daily: "", monthly: "", maxKeys: "", rpm: "" });
   const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState<EnrichedQuota | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const data = await api.listQuotas(adminKey);
-      setQuotas(data.quotas);
+      const [quotaData, projects] = await Promise.all([
+        api.listQuotas(adminKey),
+        api.listProjects(adminKey),
+      ]);
+
+      const projectMap = new Map<string, Project>();
+      for (const p of projects) projectMap.set(p.id, p);
+
+      // Fetch key counts per project
+      const keyCounts = new Map<string, number>();
+      await Promise.all(
+        quotaData.quotas.map(async (q) => {
+          try {
+            const keys = await api.listProjectKeys(adminKey, q.projectId);
+            keyCounts.set(q.projectId, keys.length);
+          } catch {
+            keyCounts.set(q.projectId, 0);
+          }
+        }),
+      );
+
+      const enriched: EnrichedQuota[] = quotaData.quotas.map((q) => ({
+        ...q,
+        projectName: projectMap.get(q.projectId)?.name ?? q.projectId.slice(0, 12),
+        currentKeyCount: keyCounts.get(q.projectId) ?? 0,
+      }));
+
+      setQuotas(enriched);
       setError(null);
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -100,7 +153,7 @@ export function SubscriptionsPage({ adminKey }: SubscriptionsPageProps) {
     void load();
   }, [load]);
 
-  function openEdit(quota: ProjectQuota) {
+  function openEdit(quota: EnrichedQuota) {
     setEditing(quota);
     setForm({
       daily: quota.dailyRequestLimit?.toString() ?? "",
@@ -129,6 +182,18 @@ export function SubscriptionsPage({ adminKey }: SubscriptionsPageProps) {
     }
   }
 
+  async function handleToggleStatus() {
+    if (!toggling) return;
+    try {
+      const newStatus = toggling.status === "active" ? "suspended" : "active";
+      await api.updateProjectQuota(adminKey, toggling.projectId, { status: newStatus });
+      setToggling(null);
+      await load();
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    }
+  }
+
   if (loading) return <LoadingSpinner label="Loading quotas..." />;
   if (error) return <p className="text-red-400">{error}</p>;
 
@@ -141,7 +206,12 @@ export function SubscriptionsPage({ adminKey }: SubscriptionsPageProps) {
       ) : (
         <div data-testid="quota-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {quotas.map((q) => (
-            <QuotaCard key={q.projectId} quota={q} onEdit={() => openEdit(q)} />
+            <QuotaCard
+              key={q.projectId}
+              quota={q}
+              onEdit={() => openEdit(q)}
+              onToggleStatus={() => setToggling(q)}
+            />
           ))}
         </div>
       )}
@@ -200,6 +270,16 @@ export function SubscriptionsPage({ adminKey }: SubscriptionsPageProps) {
           </button>
         </div>
       </Modal>
+
+      {/* Suspend/Activate confirmation */}
+      <ConfirmDialog
+        open={toggling !== null}
+        title={toggling?.status === "active" ? "Suspend Project" : "Activate Project"}
+        message={`Are you sure you want to ${toggling?.status === "active" ? "suspend" : "activate"} ${toggling?.projectName ?? "this project"}?`}
+        confirmLabel={toggling?.status === "active" ? "Suspend" : "Activate"}
+        onConfirm={handleToggleStatus}
+        onCancel={() => setToggling(null)}
+      />
     </div>
   );
 }
