@@ -8,6 +8,8 @@ export interface ProjectContext {
   projectName: string;
   defaultProvider: string;
   allowedProviders: string[];
+  /** Providers ordered by binding priority (ascending), excluding the default. */
+  fallbackProviders: string[];
   apiKeyId: string;
 }
 
@@ -39,11 +41,20 @@ export class ProjectService {
       .map((b) => b.provider)
       .filter((v, i, a) => a.indexOf(v) === i);
 
+    // Derive fallback order: enabled bindings sorted by priority (ascending),
+    // deduplicated, with the default provider excluded.
+    const fallbackProviders = result.bindings
+      .filter((b) => b.enabled && b.provider !== result.defaultProvider)
+      .sort((a, b) => a.priority - b.priority)
+      .map((b) => b.provider)
+      .filter((v, i, a) => a.indexOf(v) === i);
+
     return {
       projectId: result.project.id,
       projectName: result.project.name,
       defaultProvider: result.defaultProvider,
       allowedProviders,
+      fallbackProviders,
       apiKeyId: apiKeyId ?? "unknown",
     };
   }

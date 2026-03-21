@@ -48,9 +48,10 @@ export async function registerCapabilityRoutes(
         });
       }
 
-      const projectId = req.projectContext?.projectId;
-      const apiKeyId = req.projectContext?.apiKeyId ?? "unknown";
-      const defaultProvider = req.projectContext?.defaultProvider ?? "unknown";
+      const projectContext = req.projectContext;
+      const projectId = projectContext?.projectId;
+      const apiKeyId = projectContext?.apiKeyId ?? "unknown";
+      const defaultProvider = projectContext?.defaultProvider ?? "unknown";
       const resolvedProvider = parsed.data.provider ?? defaultProvider;
       const start = Date.now();
 
@@ -76,7 +77,7 @@ export async function registerCapabilityRoutes(
           capability,
           parsed.data,
           requestId,
-          projectId,
+          projectContext,
         );
 
         if (usageService && projectId) {

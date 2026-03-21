@@ -83,11 +83,12 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   // Health endpoints — /v1/health is public, /v1/health/providers requires auth
   await registerHealthRoutes(app, { healthService });
 
-  // Search service with real provider wiring [AC6]
+  // Search service with routing-backed provider selection [AC2][AC6]
   const searchService = new SearchService({
     registry,
     resolveCredential: (projectId, provider) =>
       credentialService.resolve(projectId, provider),
+    health: healthService,
   });
 
   // Usage event recording

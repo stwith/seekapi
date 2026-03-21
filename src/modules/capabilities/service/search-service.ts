@@ -5,17 +5,25 @@ import type {
 } from "../../../providers/core/types.js";
 import type { ProviderRegistry } from "../../../providers/core/registry.js";
 import type { SearchRequestBody } from "../http/schemas.js";
+import type { ProjectContext } from "../../projects/service/project-service.js";
+import type { ProviderHealth } from "../../routing/service/routing-service.js";
+import { RoutingService } from "../../routing/service/routing-service.js";
+import { createRoutingConfig } from "../../routing/service/routing-config-factory.js";
 
 export interface SearchServiceDeps {
   registry: ProviderRegistry;
   /** Resolve the decrypted credential for a given project + provider. */
   resolveCredential: (projectId: string, provider: string) => Promise<string>;
+  /** Provider health state for routing decisions. */
+  health: ProviderHealth;
 }
 
 /**
  * Search service — orchestrates search execution through the provider layer.
- * When no registry is provided, falls back to a stub response for tests
- * that don't need full provider wiring. [AC4]
+ * Uses RoutingService for repository-backed provider selection and fallback.
+ *
+ * When no deps are provided, falls back to a stub response for tests
+ * that don't need full provider wiring. [AC4][AC6]
  */
 export class SearchService {
   private readonly deps?: SearchServiceDeps;
@@ -28,41 +36,52 @@ export class SearchService {
     capability: Capability,
     body: SearchRequestBody,
     requestId: string,
-    projectId?: string,
+    projectContext?: ProjectContext,
   ): Promise<CanonicalSearchResponse> {
     if (!this.deps) {
       return this.stub(capability, requestId);
     }
 
-    const providerId = body.provider ?? this.defaultProvider(capability);
-    const adapter = this.deps.registry.getOrThrow(providerId);
-
-    if (!projectId) {
+    if (!projectContext) {
       throw new Error(
-        "projectId is required when SearchService is wired with provider deps",
+        "projectContext is required when SearchService is wired with provider deps",
       );
     }
 
-    const credential = await this.deps.resolveCredential(projectId, providerId);
+    const routingConfig = createRoutingConfig(projectContext);
+    const routing = new RoutingService({
+      health: this.deps.health,
+      config: routingConfig,
+    });
 
-    const req: CanonicalSearchRequest = {
+    const { registry, resolveCredential } = this.deps;
+
+    return routing.executeWithFallback(
       capability,
-      query: body.query,
-      maxResults: body.max_results,
-      country: body.country,
-      locale: body.locale,
-      includeDomains: body.include_domains,
-      excludeDomains: body.exclude_domains,
-      timeRange: body.time_range,
-      provider: body.provider,
-      options: body.options,
-    };
+      body.provider,
+      async (providerId) => {
+        const adapter = registry.getOrThrow(providerId);
+        const credential = await resolveCredential(
+          projectContext.projectId,
+          providerId,
+        );
 
-    return adapter.execute(req, { credential, requestId });
-  }
+        const req: CanonicalSearchRequest = {
+          capability,
+          query: body.query,
+          maxResults: body.max_results,
+          country: body.country,
+          locale: body.locale,
+          includeDomains: body.include_domains,
+          excludeDomains: body.exclude_domains,
+          timeRange: body.time_range,
+          provider: body.provider,
+          options: body.options,
+        };
 
-  private defaultProvider(_capability: Capability): string {
-    return "brave";
+        return adapter.execute(req, { credential, requestId });
+      },
+    );
   }
 
   private stub(
