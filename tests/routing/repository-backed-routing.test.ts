@@ -3,7 +3,7 @@
  *
  * Verifies that default provider, fallback ordering, and allowed providers
  * are derived from persisted project state (ProjectRepository bindings)
- * rather than hardcoded assumptions.
+ * scoped to the requested capability.
  */
 
 import { describe, it, expect } from "vitest";
@@ -43,92 +43,30 @@ async function resolveConfig(service: ProjectService) {
 const allHealthy = { isHealthy: () => true };
 
 /* ------------------------------------------------------------------ */
-/*  ProjectContext derivation                                          */
+/*  ProjectContext carries raw bindings                                */
 /* ------------------------------------------------------------------ */
 
-describe("ProjectContext routing fields", () => {
-  it("derives defaultProvider from repository", async () => {
+describe("ProjectContext bindings", () => {
+  it("carries raw bindings from repository", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
         { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
-      ],
-    });
-    const ctx = await svc.resolve("proj_test", "k1");
-    expect(ctx?.defaultProvider).toBe("brave");
-  });
-
-  it("derives allowedProviders from enabled bindings", async () => {
-    const svc = seedProject({
-      defaultProvider: "brave",
-      bindings: [
-        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
-        { provider: "google", capability: "search.web", enabled: true, priority: 1 },
-        { provider: "bing", capability: "search.web", enabled: false, priority: 2 },
-      ],
-    });
-    const ctx = await svc.resolve("proj_test", "k1");
-    expect(ctx?.allowedProviders).toEqual(["brave", "google"]);
-  });
-
-  it("derives fallbackProviders excluding the default, sorted by priority", async () => {
-    const svc = seedProject({
-      defaultProvider: "brave",
-      bindings: [
-        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
-        { provider: "bing", capability: "search.web", enabled: true, priority: 2 },
-        { provider: "google", capability: "search.web", enabled: true, priority: 1 },
-      ],
-    });
-    const ctx = await svc.resolve("proj_test", "k1");
-    // google (priority 1) before bing (priority 2), brave excluded
-    expect(ctx?.fallbackProviders).toEqual(["google", "bing"]);
-  });
-
-  it("excludes disabled bindings from fallbackProviders", async () => {
-    const svc = seedProject({
-      defaultProvider: "brave",
-      bindings: [
-        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
-        { provider: "google", capability: "search.web", enabled: false, priority: 1 },
-        { provider: "bing", capability: "search.web", enabled: true, priority: 2 },
-      ],
-    });
-    const ctx = await svc.resolve("proj_test", "k1");
-    expect(ctx?.fallbackProviders).toEqual(["bing"]);
-  });
-
-  it("deduplicates fallbackProviders across capabilities", async () => {
-    const svc = seedProject({
-      defaultProvider: "brave",
-      bindings: [
-        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
-        { provider: "google", capability: "search.web", enabled: true, priority: 1 },
         { provider: "google", capability: "search.news", enabled: true, priority: 1 },
       ],
     });
     const ctx = await svc.resolve("proj_test", "k1");
-    expect(ctx?.fallbackProviders).toEqual(["google"]);
-  });
-
-  it("returns empty fallbackProviders when only default is bound", async () => {
-    const svc = seedProject({
-      defaultProvider: "brave",
-      bindings: [
-        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
-      ],
-    });
-    const ctx = await svc.resolve("proj_test", "k1");
-    expect(ctx?.fallbackProviders).toEqual([]);
+    expect(ctx?.bindings).toHaveLength(2);
+    expect(ctx?.defaultProvider).toBe("brave");
   });
 });
 
 /* ------------------------------------------------------------------ */
-/*  RoutingConfig factory                                             */
+/*  RoutingConfig factory — capability-scoped                         */
 /* ------------------------------------------------------------------ */
 
-describe("createRoutingConfig", () => {
-  it("defaultProvider returns the project default", async () => {
+describe("createRoutingConfig (capability-scoped)", () => {
+  it("defaultProvider returns project default when bound for that capability", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
@@ -139,7 +77,47 @@ describe("createRoutingConfig", () => {
     expect(config.defaultProvider("search.web")).toBe("brave");
   });
 
-  it("fallbackOrder returns sorted fallback providers", async () => {
+  it("defaultProvider returns undefined when default has no binding for capability", async () => {
+    const svc = seedProject({
+      defaultProvider: "brave",
+      bindings: [
+        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+        { provider: "google", capability: "search.news", enabled: true, priority: 0 },
+      ],
+    });
+    const { config } = await resolveConfig(svc);
+    // brave is default but not bound for search.news
+    expect(config.defaultProvider("search.news")).toBeUndefined();
+  });
+
+  it("defaultProvider returns undefined when default binding is disabled", async () => {
+    const svc = seedProject({
+      defaultProvider: "brave",
+      bindings: [
+        { provider: "brave", capability: "search.web", enabled: false, priority: 0 },
+      ],
+    });
+    const { config } = await resolveConfig(svc);
+    expect(config.defaultProvider("search.web")).toBeUndefined();
+  });
+
+  it("fallbackOrder returns only providers bound for the requested capability", async () => {
+    const svc = seedProject({
+      defaultProvider: "brave",
+      bindings: [
+        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+        { provider: "google", capability: "search.web", enabled: true, priority: 1 },
+        { provider: "bing", capability: "search.news", enabled: true, priority: 1 },
+      ],
+    });
+    const { config } = await resolveConfig(svc);
+    // search.web fallback: only google (bing is for search.news)
+    expect(config.fallbackOrder("search.web")).toEqual(["google"]);
+    // search.news fallback: only bing (brave is default, not bound for news)
+    expect(config.fallbackOrder("search.news")).toEqual(["bing"]);
+  });
+
+  it("fallbackOrder is sorted by binding priority (ascending)", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
@@ -152,12 +130,50 @@ describe("createRoutingConfig", () => {
     expect(config.fallbackOrder("search.web")).toEqual(["google", "bing"]);
   });
 
-  it("allowedProviders returns all enabled providers", async () => {
+  it("fallbackOrder excludes disabled bindings", async () => {
+    const svc = seedProject({
+      defaultProvider: "brave",
+      bindings: [
+        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+        { provider: "google", capability: "search.web", enabled: false, priority: 1 },
+        { provider: "bing", capability: "search.web", enabled: true, priority: 2 },
+      ],
+    });
+    const { config } = await resolveConfig(svc);
+    expect(config.fallbackOrder("search.web")).toEqual(["bing"]);
+  });
+
+  it("fallbackOrder deduplicates providers", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
         { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
         { provider: "google", capability: "search.web", enabled: true, priority: 1 },
+        { provider: "google", capability: "search.web", enabled: true, priority: 2 },
+      ],
+    });
+    const { config } = await resolveConfig(svc);
+    expect(config.fallbackOrder("search.web")).toEqual(["google"]);
+  });
+
+  it("fallbackOrder is empty when only default is bound for capability", async () => {
+    const svc = seedProject({
+      defaultProvider: "brave",
+      bindings: [
+        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+      ],
+    });
+    const { config } = await resolveConfig(svc);
+    expect(config.fallbackOrder("search.web")).toEqual([]);
+  });
+
+  it("allowedProviders returns all enabled providers across capabilities", async () => {
+    const svc = seedProject({
+      defaultProvider: "brave",
+      bindings: [
+        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+        { provider: "google", capability: "search.news", enabled: true, priority: 1 },
+        { provider: "bing", capability: "search.web", enabled: false, priority: 2 },
       ],
     });
     const { config } = await resolveConfig(svc);
@@ -166,16 +182,16 @@ describe("createRoutingConfig", () => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  RoutingService with repository-backed config                      */
+/*  RoutingService with capability-scoped repository config            */
 /* ------------------------------------------------------------------ */
 
-describe("RoutingService with repository-backed config", () => {
-  it("selects persisted default provider", async () => {
+describe("RoutingService with capability-scoped config", () => {
+  it("selects persisted default provider for the requested capability", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
         { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
-        { provider: "google", capability: "search.web", enabled: true, priority: 1 },
+        { provider: "google", capability: "search.news", enabled: true, priority: 0 },
       ],
     });
     const { config } = await resolveConfig(svc);
@@ -186,34 +202,46 @@ describe("RoutingService with repository-backed config", () => {
     expect(result.reason).toBe("default");
   });
 
-  it("falls back in persisted priority order when default is unhealthy", async () => {
+  it("falls back to capability-scoped fallback when default is not bound", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
         { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
-        { provider: "bing", capability: "search.web", enabled: true, priority: 2 },
-        { provider: "google", capability: "search.web", enabled: true, priority: 1 },
+        { provider: "google", capability: "search.news", enabled: true, priority: 0 },
       ],
     });
     const { config } = await resolveConfig(svc);
-    const routing = new RoutingService({
-      health: { isHealthy: (id) => id !== "brave" },
-      config,
-    });
+    const routing = new RoutingService({ health: allHealthy, config });
 
-    const result = routing.selectProvider("search.web");
-    // google (priority 1) should be tried before bing (priority 2)
+    // brave is not bound for search.news, so google should be selected via fallback
+    const result = routing.selectProvider("search.news");
     expect(result.providerId).toBe("google");
     expect(result.reason).toBe("fallback");
   });
 
-  it("respects binding priority for fallback ordering", async () => {
+  it("does NOT cross-pollinate providers between capabilities", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
         { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
-        { provider: "bing", capability: "search.web", enabled: true, priority: 1 },
-        { provider: "google", capability: "search.web", enabled: true, priority: 2 },
+        { provider: "google", capability: "search.news", enabled: true, priority: 0 },
+      ],
+    });
+    const { config } = await resolveConfig(svc);
+
+    // search.web should NOT see google (it's only bound for search.news)
+    expect(config.fallbackOrder("search.web")).toEqual([]);
+    // search.news should NOT see brave in fallback (brave is default but not bound for news)
+    expect(config.fallbackOrder("search.news")).toEqual(["google"]);
+  });
+
+  it("falls back in priority order within a capability", async () => {
+    const svc = seedProject({
+      defaultProvider: "brave",
+      bindings: [
+        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+        { provider: "bing", capability: "search.web", enabled: true, priority: 2 },
+        { provider: "google", capability: "search.web", enabled: true, priority: 1 },
       ],
     });
     const { config } = await resolveConfig(svc);
@@ -223,11 +251,11 @@ describe("RoutingService with repository-backed config", () => {
     });
 
     const result = routing.selectProvider("search.web");
-    // bing has lower priority number (1) → tried first
-    expect(result.providerId).toBe("bing");
+    expect(result.providerId).toBe("google");
+    expect(result.reason).toBe("fallback");
   });
 
-  it("throws when no healthy provider is available from repo config", async () => {
+  it("throws when no provider is bound for the requested capability", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
@@ -235,21 +263,19 @@ describe("RoutingService with repository-backed config", () => {
       ],
     });
     const { config } = await resolveConfig(svc);
-    const routing = new RoutingService({
-      health: { isHealthy: () => false },
-      config,
-    });
+    const routing = new RoutingService({ health: allHealthy, config });
 
-    expect(() => routing.selectProvider("search.web")).toThrow(RoutingError);
+    // search.images has no bindings at all
+    expect(() => routing.selectProvider("search.images")).toThrow(RoutingError);
   });
 
-  it("executeWithFallback follows persisted fallback order on retryable error", async () => {
+  it("executeWithFallback follows capability-scoped fallback on retryable error", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
         { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
         { provider: "google", capability: "search.web", enabled: true, priority: 1 },
-        { provider: "bing", capability: "search.web", enabled: true, priority: 2 },
+        { provider: "bing", capability: "search.news", enabled: true, priority: 0 },
       ],
     });
     const { config } = await resolveConfig(svc);
@@ -268,11 +294,12 @@ describe("RoutingService with repository-backed config", () => {
       },
     );
 
+    // Should fallback to google (search.web), NOT bing (search.news)
     expect(result).toBe("ok-from-google");
     expect(calls).toEqual(["brave", "google"]);
   });
 
-  it("single-provider project has no fallback", async () => {
+  it("single-provider capability has no fallback", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
@@ -298,7 +325,6 @@ describe("RoutingService with repository-backed config", () => {
   });
 
   it("changing default provider in repository changes routing", async () => {
-    // First project: default is brave
     const svc1 = seedProject({
       defaultProvider: "brave",
       bindings: [
@@ -310,7 +336,6 @@ describe("RoutingService with repository-backed config", () => {
     const routing1 = new RoutingService({ health: allHealthy, config: config1 });
     expect(routing1.selectProvider("search.web").providerId).toBe("brave");
 
-    // Second project: default is google
     const svc2 = seedProject({
       defaultProvider: "google",
       bindings: [

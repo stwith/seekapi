@@ -50,7 +50,7 @@ describe("Repository-backed AuthService", () => {
     expect(ctx!.projectId).toBe(TEST_PROJECT_ID);
     expect(ctx!.apiKeyId).toBe(TEST_API_KEY_ID);
     expect(ctx!.defaultProvider).toBe("brave");
-    expect(ctx!.allowedProviders).toContain("brave");
+    expect(ctx!.bindings.some((b) => b.provider === "brave" && b.enabled)).toBe(true);
   });
 
   test("invalid key returns undefined", async () => {
@@ -111,13 +111,15 @@ describe("Repository-backed ProjectService", () => {
     expect(ctx!.projectId).toBe(TEST_PROJECT_ID);
     expect(ctx!.projectName).toBe("Test Project");
     expect(ctx!.defaultProvider).toBe("brave");
-    expect(ctx!.allowedProviders).toEqual(["brave"]);
+    expect(ctx!.bindings).toHaveLength(3);
     expect(ctx!.apiKeyId).toBe("key_001");
   });
 
-  test("disabled bindings are excluded from allowedProviders", async () => {
+  test("bindings include both enabled and disabled entries for downstream filtering", async () => {
     const ctx = await projectService.resolve(TEST_PROJECT_ID);
-    expect(ctx!.allowedProviders).not.toContain("tavily");
+    const enabled = ctx!.bindings.filter((b) => b.enabled);
+    expect(enabled.every((b) => b.provider === "brave")).toBe(true);
+    expect(ctx!.bindings.some((b) => b.provider === "tavily" && !b.enabled)).toBe(true);
   });
 
   test("unknown project returns undefined", async () => {
