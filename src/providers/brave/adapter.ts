@@ -88,10 +88,12 @@ export class BraveAdapter implements ProviderAdapter {
 
     const start = Date.now();
     try {
+      const timeout = AbortSignal.timeout(5_000);
       await this.client.search(
         "web/search",
         { q: "health", count: 1 },
         ctx.credential,
+        timeout,
       );
       return {
         provider: this.id,

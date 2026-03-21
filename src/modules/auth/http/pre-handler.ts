@@ -49,18 +49,25 @@ export async function registerAuthPreHandler(
         });
       }
 
-      // Rate limiting — check after auth so we know the project
+      // Rate limiting — check after auth so we know the project.
+      // If the rate-limit backend (Redis) is unreachable, allow the request
+      // through rather than turning every call into a 500.
       if (deps?.rateLimitService) {
-        const limit = await deps.rateLimitService.check(project.projectId);
-        reply.header("x-ratelimit-limit", String(limit.limit));
-        reply.header("x-ratelimit-remaining", String(limit.remaining));
-        reply.header("x-ratelimit-reset", String(limit.resetSeconds));
+        try {
+          const limit = await deps.rateLimitService.check(project.projectId);
+          reply.header("x-ratelimit-limit", String(limit.limit));
+          reply.header("x-ratelimit-remaining", String(limit.remaining));
+          reply.header("x-ratelimit-reset", String(limit.resetSeconds));
 
-        if (!limit.allowed) {
-          return reply.status(429).send({
-            error: "RATE_LIMITED",
-            message: "Project rate limit exceeded",
-          });
+          if (!limit.allowed) {
+            return reply.status(429).send({
+              error: "RATE_LIMITED",
+              message: "Project rate limit exceeded",
+            });
+          }
+        } catch {
+          // Redis down — degrade gracefully, let request proceed without limits
+          req.log.warn("rate-limit check failed, allowing request");
         }
       }
 

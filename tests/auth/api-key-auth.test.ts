@@ -2,6 +2,8 @@ import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { buildApp } from "../../src/app/build-app.js";
 import type { FastifyInstance } from "fastify";
 import { mockBraveFetch } from "../helpers/mock-brave.js";
+import { registerAuthPreHandler } from "../../src/modules/auth/http/pre-handler.js";
+import Fastify from "fastify";
 
 describe("API key authentication", () => {
   let app: FastifyInstance;
@@ -120,6 +122,34 @@ describe("API key authentication", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty("provider");
+  });
+});
+
+describe("Rate-limit backend failure", () => {
+  test("request succeeds when rateLimitService.check() throws", async () => {
+    const app = Fastify({ logger: false });
+
+    const failingRateLimitService = {
+      check: () => Promise.reject(new Error("Redis connection refused")),
+    };
+
+    await registerAuthPreHandler(app, {
+      rateLimitService: failingRateLimitService as never,
+    });
+
+    app.post("/v1/search/web", async () => ({ ok: true }));
+    await app.ready();
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/search/web",
+      payload: { query: "test" },
+      headers: { authorization: `Bearer ${getTestApiKey()}` },
+    });
+
+    // Should NOT be 500 — request degrades gracefully
+    expect(res.statusCode).toBe(200);
+    await app.close();
   });
 });
 
