@@ -7,6 +7,7 @@ import { ProjectService } from "../../projects/service/project-service.js";
  * Full persistence comes in Task 5; this task uses an in-memory store.
  */
 interface ApiKeyRecord {
+  id: string;
   keyHash: string;
   projectId: string;
 }
@@ -21,7 +22,7 @@ const TEST_KEY = "sk_test_seekapi_demo_key_001";
 
 /** In-memory key store — replaced by DB repository in Task 5. */
 const KEYS: ApiKeyRecord[] = [
-  { keyHash: hashKey(TEST_KEY), projectId: "proj_demo_001" },
+  { id: "key_demo_001", keyHash: hashKey(TEST_KEY), projectId: "proj_demo_001" },
 ];
 
 export class AuthService {
@@ -39,6 +40,6 @@ export class AuthService {
     const hash = hashKey(rawKey);
     const record = KEYS.find((k) => k.keyHash === hash);
     if (!record) return undefined;
-    return this.projectService.resolve(record.projectId);
+    return this.projectService.resolve(record.projectId, record.id);
   }
 }

@@ -1,7 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import type { Capability } from "../../../providers/core/types.js";
+import { ProviderError } from "../../../providers/core/errors.js";
 import { searchRequestSchema } from "./schemas.js";
-import type { SearchService } from "../service/search-service.js";
+import { SearchService } from "../service/search-service.js";
+import type { UsageService } from "../../usage/service/usage-service.js";
+import type { AuditService } from "../../audit/service/audit-service.js";
 import { generateRequestId } from "../../../lib/request-id.js";
 
 const ROUTE_CAPABILITY_MAP: Record<string, Capability> = {
@@ -9,6 +12,12 @@ const ROUTE_CAPABILITY_MAP: Record<string, Capability> = {
   "/v1/search/news": "search.news",
   "/v1/search/images": "search.images",
 };
+
+export interface CapabilityRouteDeps {
+  searchService: SearchService;
+  usageService?: UsageService;
+  auditService?: AuditService;
+}
 
 /**
  * Register canonical search endpoints on the Fastify instance. [AC3][AC4]
@@ -18,8 +27,13 @@ const ROUTE_CAPABILITY_MAP: Record<string, Capability> = {
  */
 export async function registerCapabilityRoutes(
   app: FastifyInstance,
-  searchService: SearchService,
+  deps: CapabilityRouteDeps | SearchService,
 ): Promise<void> {
+  const { searchService, usageService, auditService } =
+    deps instanceof SearchService
+      ? { searchService: deps, usageService: undefined, auditService: undefined }
+      : (deps as CapabilityRouteDeps);
+
   for (const [path, capability] of Object.entries(ROUTE_CAPABILITY_MAP)) {
     app.post(path, async (req, reply) => {
       const requestId = generateRequestId();
@@ -35,30 +49,91 @@ export async function registerCapabilityRoutes(
       }
 
       const projectId = req.projectContext?.projectId;
-      const result = await searchService.execute(
-        capability,
-        parsed.data,
-        requestId,
-        projectId,
-      );
+      const apiKeyId = req.projectContext?.apiKeyId ?? "unknown";
+      const defaultProvider = req.projectContext?.defaultProvider ?? "unknown";
+      const resolvedProvider = parsed.data.provider ?? defaultProvider;
+      const start = Date.now();
 
-      return reply.send({
-        request_id: result.requestId,
-        provider: result.provider,
-        capability: result.capability,
-        latency_ms: result.latencyMs,
-        items: result.items.map((item) => ({
-          title: item.title,
-          url: item.url,
-          snippet: item.snippet,
-          published_at: item.publishedAt ?? null,
-          source_type: item.sourceType,
-          score: item.score ?? null,
-        })),
-        citations: result.citations ?? [],
-        extensions: result.extensions ?? {},
-        raw: result.raw ?? null,
-      });
+      // Audit: log every search request
+      if (auditService && projectId) {
+        await auditService.log({
+          projectId,
+          actorType: "api_key",
+          actorId: apiKeyId,
+          action: "search.execute",
+          resourceType: "capability",
+          resourceId: capability,
+          details: {
+            requestId,
+            provider: resolvedProvider,
+            query: parsed.data.query,
+          },
+        });
+      }
+
+      try {
+        const result = await searchService.execute(
+          capability,
+          parsed.data,
+          requestId,
+          projectId,
+        );
+
+        if (usageService && projectId) {
+          await usageService.recordSuccess({
+            requestId,
+            projectId,
+            apiKeyId,
+            provider: result.provider,
+            capability,
+            latencyMs: result.latencyMs,
+            resultCount: result.items.length,
+            fallbackCount: 0,
+          });
+        }
+
+        return reply.send({
+          request_id: result.requestId,
+          provider: result.provider,
+          capability: result.capability,
+          latency_ms: result.latencyMs,
+          items: result.items.map((item) => ({
+            title: item.title,
+            url: item.url,
+            snippet: item.snippet,
+            published_at: item.publishedAt ?? null,
+            source_type: item.sourceType,
+            score: item.score ?? null,
+          })),
+          citations: result.citations ?? [],
+          extensions: result.extensions ?? {},
+          raw: result.raw ?? null,
+        });
+      } catch (err) {
+        const latencyMs = Date.now() - start;
+        const statusCode =
+          typeof err === "object" && err !== null && "statusCode" in err
+            ? (err as { statusCode: number }).statusCode
+            : 500;
+
+        // Extract actual provider from ProviderError if available
+        const errorProvider =
+          err instanceof ProviderError ? err.provider : resolvedProvider;
+
+        if (usageService && projectId) {
+          await usageService.recordFailure({
+            requestId,
+            projectId,
+            apiKeyId,
+            provider: errorProvider,
+            capability,
+            statusCode,
+            latencyMs,
+          });
+        }
+
+        throw err;
+      }
     });
   }
 }
