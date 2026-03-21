@@ -27,7 +27,12 @@ export interface RedisClient {
 
 /** Create a real ioredis-backed client. */
 export function createRedisClient(url?: string): RedisClient {
-  const redis = url ? new Redis(url) : new Redis();
+  const redis = url
+    ? new Redis(url, { maxRetriesPerRequest: 3, lazyConnect: true })
+    : new Redis({ maxRetriesPerRequest: 3, lazyConnect: true });
+
+  // Suppress unhandled connection errors — rate limiting degrades gracefully
+  redis.on("error", () => {});
 
   return {
     incr: (key) => redis.incr(key),
