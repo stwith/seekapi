@@ -4,7 +4,7 @@ How to run SeekAPI locally, seed demo data, and verify the Brave search path end
 
 ## 1. Prerequisites
 
-- Node.js 20+
+- Node.js 22+ (see `engines` in `package.json`)
 - (Optional) Docker for PostgreSQL and Redis
 
 ## 2. Install Dependencies
