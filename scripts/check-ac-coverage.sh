@@ -9,28 +9,20 @@ if [ ! -d docs/plans ]; then
   exit 0
 fi
 
-latest_plan="$(
-  ls -t docs/plans/*.md 2>/dev/null \
+plans="$(
+  ls docs/plans/*.md 2>/dev/null \
     | grep -v '/TEMPLATE\.md$' \
-    | head -n 1 \
     || true
 )"
 
-if [ -z "${latest_plan:-}" ]; then
-  echo "[check-ac-coverage] no active plan found, skipping"
-  exit 0
-fi
-
-acs="$(grep -o 'AC[0-9]\+' "$latest_plan" | sort | uniq || true)"
-
-if [ -z "${acs:-}" ]; then
-  echo "[check-ac-coverage] no AC labels found in $latest_plan, skipping"
+if [ -z "${plans:-}" ]; then
+  echo "[check-ac-coverage] no active plans found, skipping"
   exit 0
 fi
 
 search_targets=()
 
-for path in .github src tests scripts docs examples AGENTS.md README.md "$latest_plan"; do
+for path in .github src tests scripts docs examples AGENTS.md README.md; do
   if [ -e "$path" ]; then
     search_targets+=("$path")
   fi
@@ -41,12 +33,20 @@ if [ "${#search_targets[@]}" -eq 0 ]; then
   exit 0
 fi
 
-for ac in $acs; do
-  if ! grep -R -n -- "$ac" "${search_targets[@]}" >/dev/null 2>&1; then
-    echo "FAIL: missing coverage for $ac"
-    echo "Action: add a test, smoke check, or validation artifact labeled $ac"
-    exit 1
-  fi
-done
+for plan in $plans; do
+  acs="$(grep -o 'AC[0-9]\+' "$plan" | sort | uniq || true)"
 
-echo "[check-ac-coverage] passed for $latest_plan"
+  if [ -z "${acs:-}" ]; then
+    continue
+  fi
+
+  for ac in $acs; do
+    if ! grep -R -n -- "$ac" "${search_targets[@]}" >/dev/null 2>&1; then
+      echo "FAIL: missing coverage for $ac in $plan"
+      echo "Action: add a test, smoke check, or validation artifact labeled $ac"
+      exit 1
+    fi
+  done
+
+  echo "[check-ac-coverage] passed for $plan"
+done

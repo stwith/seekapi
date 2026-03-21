@@ -42,9 +42,22 @@ That means:
 - persist and query the important operational records
 - harden health, limits, credentials, and operator workflows
 
+### Stage 2.5: Brave-only service distribution and management
+
+After the Brave execution path is operational, the next gap is product control.
+SeekAPI should be able to take one Brave upstream credential path and distribute it safely through many downstream SeekAPI keys.
+
+This stage should:
+
+- make projects, downstream API keys, provider credentials, and provider bindings truly persistent
+- add an admin control surface for creating projects, issuing keys, and attaching Brave credentials
+- prove that multiple downstream keys can be separately allowed, disabled, rate-limited, and attributed
+
+This is the stage where the Brave path becomes a real managed service instead of only a technically complete runtime.
+
 ### Stage 3: horizontal provider expansion
 
-Only after the Brave path is solid should the system expand horizontally.
+Only after the Brave path and its control plane are solid should the system expand horizontally.
 
 The main objective of Stage 3 should be:
 
@@ -180,6 +193,7 @@ The correct strategic focus is:
 - one clean canonical contract
 - one project-scoped control model
 - one observable and operable gateway runtime
+- one distributable downstream key model before multi-provider expansion
 
 Compatibility for future providers matters, but future providers are not the current delivery target.
 
@@ -206,9 +220,18 @@ Stage 2 should explicitly avoid:
 - adding speculative multi-provider fanout
 - widening canonical capability surface before the Brave path is solid
 
+## Stage 2.5 Design Priorities
+
+Once the Brave runtime path works, the next priorities should be:
+
+1. Persist project, API key, provider credential, and binding entities.
+2. Add an admin API to manage Brave-only service distribution without direct DB edits.
+3. Prove multiple downstream SeekAPI keys can share one Brave path while staying independently attributable and controllable.
+4. Keep provider choice behind project policy rather than exposing provider-native auth to downstream users.
+
 ## Stage 3 Design Priorities
 
-Once Stage 2 is complete, the next primary priorities should be:
+Once Stage 2.5 is complete, the next primary priorities should be:
 
 1. Add a second provider without changing downstream canonical routes.
 2. Prove repository-backed project, credential, and routing policy flows work across providers.

@@ -18,7 +18,7 @@ fi
 SMOKE_PORT=19876
 
 echo "[smoke] building app"
-npm run build --silent
+pnpm run --silent build
 
 echo "[smoke] starting server on port $SMOKE_PORT"
 # ENCRYPTION_KEY required by server.ts — use a deterministic test key for smoke

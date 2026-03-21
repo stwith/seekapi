@@ -15,14 +15,14 @@ run_if_present() {
 }
 
 if [ -f package.json ] && [ -d node_modules ]; then
-  echo "[validate] npm run lint"
-  npm run lint
-  echo "[validate] npm run typecheck"
-  npm run typecheck
-  echo "[validate] npm test"
-  npm test
-  echo "[validate] npm run build"
-  npm run build
+  echo "[validate] pnpm run lint"
+  pnpm run lint
+  echo "[validate] pnpm run typecheck"
+  pnpm run typecheck
+  echo "[validate] pnpm test"
+  pnpm test
+  echo "[validate] pnpm run build"
+  pnpm run build
 else
   echo "[validate] package.json or node_modules missing, skipping lint/typecheck/test/build"
 fi

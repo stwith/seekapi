@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Pure API gateway for search and agent-facing service providers",
   "type": "module",
+  "packageManager": "pnpm@10.28.0",
   "engines": {
     "node": ">=22.0.0"
   },

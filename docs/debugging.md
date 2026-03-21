@@ -8,7 +8,7 @@ It covers system startup, data preparation, smoke checks, and common failure poi
 ## Standard Flow
 
 1. Set required env vars (`ENCRYPTION_KEY`, optionally `BRAVE_API_KEY`).
-2. Start the app (`npm run dev`). Server auto-seeds demo project from env vars.
+2. Start the app (`pnpm dev`). Server auto-seeds demo project from env vars.
 3. Run smoke (`bash scripts/validate.sh`).
 4. Inspect logs.
 
