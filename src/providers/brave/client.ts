@@ -56,7 +56,7 @@ export class BraveClient {
 function categorizeStatus(
   status: number,
 ): "bad_credential" | "rate_limited" | "upstream_5xx" | "unknown" {
-  if (status === 401 || status === 403) return "bad_credential";
+  if (status === 401 || status === 403 || status === 422) return "bad_credential";
   if (status === 429) return "rate_limited";
   if (status >= 500) return "upstream_5xx";
   return "unknown";

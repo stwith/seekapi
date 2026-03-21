@@ -325,4 +325,14 @@ describe("BraveClient HTTP status classification", () => {
       }
     } finally { restore(); }
   });
+
+  it("classifies 422 as bad_credential", async () => {
+    const restore = mockFetchStatus(422);
+    try {
+      try { await new BraveClient().search("web/search", { q: "t" }, "k"); } catch (err) {
+        expect((err as ProviderError).category).toBe("bad_credential");
+        expect((err as ProviderError).retryable).toBe(false);
+      }
+    } finally { restore(); }
+  });
 });

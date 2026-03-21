@@ -21,7 +21,7 @@ export default defineConfig({
   webServer: [
     {
       command:
-        "ADMIN_API_KEY=test_admin_key ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000 PORT=3044 node --import=tsx ../../src/app/server.ts",
+        "ADMIN_API_KEY=test_admin_key ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000 PORT=3044 node --import=tsx ../src/app/server.ts",
       cwd: import.meta.dirname,
       port: 3044,
       reuseExistingServer: !process.env.CI,

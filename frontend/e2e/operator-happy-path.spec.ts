@@ -24,7 +24,7 @@ test.describe("Operator console happy path", () => {
 
     // 4. Navigate to Projects page
     await page.getByRole("link", { name: "Projects" }).click();
-    await expect(page.getByText("Projects")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Projects/ })).toBeVisible();
 
     // 5. Create a project
     const projectName = `e2e-test-${Date.now()}`;

@@ -7,6 +7,30 @@ import type { UsageService } from "../../usage/service/usage-service.js";
 import type { AuditService } from "../../audit/service/audit-service.js";
 import { generateRequestId } from "../../../lib/request-id.js";
 
+/**
+ * Map ProviderError categories to downstream HTTP status codes.
+ * SeekAPI is a gateway — we must not forward upstream provider status codes
+ * directly to the client. Instead we translate them to semantically correct
+ * gateway-level codes.
+ */
+function mapProviderErrorToStatus(err: ProviderError): number {
+  switch (err.category) {
+    case "bad_credential":
+      return 502; // upstream credential issue — gateway error
+    case "rate_limited":
+      return 429; // upstream rate limit → surface as rate limit
+    case "upstream_5xx":
+      return 502; // upstream server error
+    case "timeout":
+      return 504; // upstream timeout → gateway timeout
+    case "invalid_request":
+      return 400; // bad request from our mapping
+    case "unknown":
+    default:
+      return 502; // default to Bad Gateway for unknown upstream errors
+  }
+}
+
 const ROUTE_CAPABILITY_MAP: Record<string, Capability> = {
   "/v1/search/web": "search.web",
   "/v1/search/news": "search.news",
@@ -112,14 +136,16 @@ export async function registerCapabilityRoutes(
         });
       } catch (err) {
         const latencyMs = Date.now() - start;
-        const statusCode =
-          typeof err === "object" && err !== null && "statusCode" in err
-            ? (err as { statusCode: number }).statusCode
-            : 500;
 
         // Extract actual provider from ProviderError if available
         const errorProvider =
           err instanceof ProviderError ? err.provider : resolvedProvider;
+
+        // Map ProviderError categories to downstream HTTP status codes.
+        // Never forward upstream status codes directly — SeekAPI is a gateway.
+        const downstreamStatus = err instanceof ProviderError
+          ? mapProviderErrorToStatus(err)
+          : 500;
 
         if (usageService && projectId) {
           await usageService.recordFailure({
@@ -128,12 +154,17 @@ export async function registerCapabilityRoutes(
             apiKeyId,
             provider: errorProvider,
             capability,
-            statusCode,
+            statusCode: downstreamStatus,
             latencyMs,
           });
         }
 
-        throw err;
+        const message = err instanceof Error ? err.message : "Internal error";
+        return reply.status(downstreamStatus).send({
+          error: err instanceof ProviderError ? `PROVIDER_${err.category.toUpperCase()}` : "INTERNAL_ERROR",
+          message,
+          request_id: requestId,
+        });
       }
     });
   }

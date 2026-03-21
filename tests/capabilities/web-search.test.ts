@@ -3,6 +3,23 @@ import type { FastifyInstance } from "fastify";
 import { mockBraveFetch } from "../helpers/mock-brave.js";
 import { buildTestApp } from "../helpers/build-test-app.js";
 
+function mockBraveFetchStatus(status: number): () => void {
+  const original = globalThis.fetch;
+  globalThis.fetch = (input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.includes("api.search.brave.com")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ error: "mock_error" }), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }
+    return original(input);
+  };
+  return () => { globalThis.fetch = original; };
+}
+
 const AUTH_HEADER = { authorization: "Bearer sk_test_seekapi_demo_key_001" };
 
 describe("POST /v1/search/web", () => {
@@ -114,5 +131,90 @@ describe("POST /v1/search/web", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.capability).toBe("search.web");
+  });
+});
+
+describe("POST /v1/search/web — gateway error mapping", () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    app = await buildTestApp();
+    await app.ready();
+  });
+
+  test("upstream rate limit (429) maps to downstream 429 with PROVIDER_RATE_LIMITED", async () => {
+    const restore = mockBraveFetchStatus(429);
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/search/web",
+        payload: { query: "test" },
+        headers: AUTH_HEADER,
+      });
+
+      expect(res.statusCode).toBe(429);
+      const body = res.json();
+      expect(body.error).toBe("PROVIDER_RATE_LIMITED");
+      expect(body).toHaveProperty("request_id");
+      expect(body).toHaveProperty("message");
+    } finally { restore(); }
+  });
+
+  test("upstream 500 maps to downstream 502 with PROVIDER_UPSTREAM_5XX", async () => {
+    const restore = mockBraveFetchStatus(500);
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/search/web",
+        payload: { query: "test" },
+        headers: AUTH_HEADER,
+      });
+
+      expect(res.statusCode).toBe(502);
+      const body = res.json();
+      expect(body.error).toBe("PROVIDER_UPSTREAM_5XX");
+      expect(body).toHaveProperty("request_id");
+    } finally { restore(); }
+  });
+
+  test("upstream bad credential (401) maps to downstream 502 with PROVIDER_BAD_CREDENTIAL", async () => {
+    const restore = mockBraveFetchStatus(401);
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/search/web",
+        payload: { query: "test" },
+        headers: AUTH_HEADER,
+      });
+
+      expect(res.statusCode).toBe(502);
+      const body = res.json();
+      expect(body.error).toBe("PROVIDER_BAD_CREDENTIAL");
+      expect(body).toHaveProperty("request_id");
+    } finally { restore(); }
+  });
+
+  test("network timeout maps to downstream 504 with PROVIDER_TIMEOUT", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("api.search.brave.com")) {
+        return Promise.reject(new TypeError("fetch failed"));
+      }
+      return original(input);
+    };
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/search/web",
+        payload: { query: "test" },
+        headers: AUTH_HEADER,
+      });
+
+      expect(res.statusCode).toBe(504);
+      const body = res.json();
+      expect(body.error).toBe("PROVIDER_TIMEOUT");
+      expect(body).toHaveProperty("request_id");
+    } finally { globalThis.fetch = original; }
   });
 });
