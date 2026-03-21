@@ -55,15 +55,16 @@ Use one small frontend app, mounted as an operator console, with a narrow page s
 
 Recommended stack:
 
-- Next.js
+- Vite
 - React + TypeScript
-- App Router with client-first operator pages
+- simple client-side router
 - lightweight data fetching
 - no design-system overbuild
 
 Why this approach:
 
-- it matches the current TypeScript repo and minimizes tool sprawl
+- it is sufficient for a pure operator SPA with no SSR or SEO needs
+- it keeps tooling aligned with the repo's existing frontend-light workflow and Vitest usage
 - it keeps the UI harness small enough for internal operations
 - it avoids coupling the console to a future end-user auth model
 
@@ -197,6 +198,17 @@ These read endpoints should still respect the existing layering:
 - repositories fetch persisted state
 - no UI-specific DB access shortcuts
 
+## Frontend Runtime Contract
+
+The operator console is expected to run on a different local port from the Fastify API during development.
+
+Phase 3 should explicitly define one development connectivity path:
+
+- enable narrow CORS for the operator frontend origin on admin and canonical endpoints, or
+- provide a documented frontend dev proxy
+
+The default recommendation is narrow CORS with an explicit allowlist for the configured operator origin. Do not leave admin endpoints open to unrestricted browser origins.
+
 ## UX Guardrails
 
 The console should be intentionally plain and operational:
@@ -216,6 +228,21 @@ Avoid copying `sub2api` features that do not match SeekAPI's product boundary:
 - balances
 - proxy/account marketplace concepts
 
+## State And Error Handling
+
+The frontend should stay simple by default:
+
+- local React state for page-local UI state
+- a lightweight query layer for server reads and mutation refresh
+- avoid introducing global state tooling unless repeated cross-page coordination proves necessary
+
+Error handling expectations:
+
+- surface HTTP status and normalized backend error messages in-place
+- distinguish operator input errors from network/server failures
+- preserve the last successful read view when a refresh fails
+- show a clear disconnected or unreachable state when the API cannot be reached
+
 ## Security Guardrails
 
 - operator auth remains `ADMIN_API_KEY` in this phase
@@ -229,7 +256,7 @@ Avoid copying `sub2api` features that do not match SeekAPI's product boundary:
 Recommended default:
 
 - create a dedicated `frontend/` directory
-- keep it as a separate Next.js application inside the same repo
+- keep it as a separate Vite application inside the same repo
 - build it independently from the API server
 
 Why:
@@ -238,8 +265,8 @@ Why:
 - preserves backend harness clarity
 - makes it easy to serve statically later or host separately
 
-Do not turn this into a backend replacement or a full-stack framework migration.
-Use Next.js mainly as the frontend framework and keep the real control-plane logic in the existing Fastify server.
+Do not turn this into a backend replacement or a framework migration project.
+Keep the real control-plane logic in the existing Fastify server.
 
 ## Architecture Boundaries
 

@@ -4,9 +4,9 @@
 
 **Goal:** Build a minimal operator-facing frontend that manages and verifies the full Phase 2.5 Brave-only workflow through the existing admin and canonical APIs.
 
-**Architecture:** Add a dedicated `frontend/` Next.js application that talks only to HTTP boundaries. Extend the admin module with read-oriented operator endpoints where necessary, but preserve the existing transport -> service -> repository layering and keep canonical search execution unchanged. The Next.js app is an operator console client, not a replacement backend.
+**Architecture:** Add a dedicated `frontend/` Vite application that talks only to HTTP boundaries. Extend the admin module with read-oriented operator endpoints where necessary, but preserve the existing transport -> service -> repository layering and keep canonical search execution unchanged. The frontend is an operator console client, not a replacement backend.
 
-**Tech Stack:** TypeScript, Node.js, Fastify, React, Next.js, Vitest, pnpm
+**Tech Stack:** TypeScript, Node.js, Fastify, React, Vite, Vitest, pnpm
 
 ---
 
@@ -18,7 +18,7 @@ AC2: The operator frontend exposes the Phase 2.5 control-plane surfaces needed f
 
 AC3: The operator frontend includes a guided or clearly sequenced workflow for the full Phase 2.5 flow: create project, bind Brave credential, enable `search.web`, mint two keys, run real searches, disable one key, and verify sibling-key isolation.
 
-AC4: The backend exposes any required read-oriented operator endpoints without violating harness layering rules or leaking raw provider secrets.
+AC4: The backend exposes the minimum required read-oriented operator endpoints without violating harness layering rules or leaking raw provider secrets: list projects, get project detail, list project keys, list project bindings, and get credential metadata without raw secret material.
 
 AC5: The frontend and backend documentation show how to run the operator console locally and validate the full Brave-only workflow end to end.
 
@@ -66,13 +66,13 @@ Manual validation should prove the full Phase 2.5 flow from the UI against a run
 **Files:**
 - Create: `frontend/package.json`
 - Create: `frontend/tsconfig.json`
-- Create: `frontend/next.config.*`
-- Create: `frontend/app/layout.tsx`
-- Create: `frontend/app/page.tsx`
-- Create: `frontend/app/*`
-- Create: `frontend/src/*`
+- Create: `frontend/vite.config.ts`
+- Create: `frontend/index.html`
+- Create: `frontend/src/main.tsx`
+- Create: `frontend/src/app/*`
 - Modify: `package.json`
 - Modify: `README.md`
+- Modify: backend startup docs or server config for frontend-to-API connectivity
 
 **Step 1: Write the frontend bootstrap tests**
 
@@ -85,12 +85,13 @@ Expected: FAIL because the frontend app and test setup do not exist yet.
 
 **Step 3: Write minimal frontend bootstrap**
 
-Create the `frontend/` Next.js app with:
+Create the `frontend/` Vite app with:
 
-- App Router entrypoint
+- React + TypeScript entrypoint
 - operator app shell
-- route groups or top-level app routes
+- route container
 - environment contract for API base URL
+- documented dev connectivity via narrow CORS or frontend proxy
 
 **Step 4: Run test to verify it passes**
 
@@ -141,6 +142,8 @@ Required response properties should include:
 - key ids and statuses
 - credential metadata without secret
 
+Document the exact read endpoint list in the admin module docs or route comments so the frontend contract is explicit.
+
 **Step 4: Run test to verify it passes**
 
 Run: `pnpm test -- --run tests/admin`
@@ -184,6 +187,8 @@ Implement:
 - projects list page
 - create project modal or inline form
 - project detail page with summary panels
+- page-local state plus lightweight query-based server state handling
+- inline empty, loading, and recoverable error states
 
 **Step 4: Run test to verify it passes**
 
@@ -228,6 +233,8 @@ Implement the management surfaces around the existing admin mutations with opera
 - capability binding editor for Brave MVP capabilities
 - key list and key actions
 - reveal-once raw key dialog after mint
+- consistent mutation error presentation for 4xx and 5xx responses
+- network-unreachable UI state for failed admin calls
 
 **Step 4: Run test to verify it passes**
 
@@ -298,7 +305,6 @@ git commit -m "feat: add phase 2.5 operator flow runner"
 
 **Step 1: Write the failing validation hook**
 
-Update validation expectations so frontend typecheck, test, and build are required.
 Update validation expectations so frontend lint, typecheck, test, and build are required.
 
 **Step 2: Run validation to verify it fails**

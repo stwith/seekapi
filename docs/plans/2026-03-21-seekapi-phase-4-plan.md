@@ -43,7 +43,7 @@ AC6: Local verification instructions show how to exercise both providers through
 - Adding three or more providers in one phase
 - Multi-provider racing
 - Cost optimization routing
-- Operator console work that belongs to Phase 3
+- Further operator console changes beyond what Phase 3 already delivers
 - Billing
 - Provider passthrough API
 - New non-search product surfaces
