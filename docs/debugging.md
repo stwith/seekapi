@@ -46,6 +46,7 @@ It covers system startup, data preparation, smoke checks, and common failure poi
 |---|---|---|
 | `ENCRYPTION_KEY` | Credential encryption at rest | **Required** |
 | `BRAVE_API_KEY` | Brave Search BYOK | Searches fail, health shows "unavailable" |
+| `ADMIN_API_KEY` | Enables admin endpoints (`/v1/admin/*`) | Admin routes not registered |
 | `DATABASE_URL` | PostgreSQL for durable persistence | In-memory (data lost on restart) |
 | `REDIS_URL` | Redis for durable rate limiting | In-memory (graceful degradation if Redis dies) |
 
@@ -64,11 +65,17 @@ Check:
 
 Symptoms: request rejected with 401 or 403.
 
-Check:
+**Downstream API keys** (for `/v1/search/*`, `/v1/health/providers`):
 - `Authorization: Bearer <key>` header present
-- API key matches `SEED_API_KEY` (default: `sk_test_seekapi_demo_key_001`)
+- API key matches `SEED_API_KEY` (default: `sk_test_seekapi_demo_key_001`) or a key minted via admin API
 - Key status is "active" in the repository
 - Project status is "active"
+
+**Admin API keys** (for `/v1/admin/*`):
+- `Authorization: Bearer <ADMIN_API_KEY>` header present
+- Token matches the `ADMIN_API_KEY` environment variable exactly
+- 401 = missing/malformed header; 403 = wrong admin key
+- Admin routes return 404 if `ADMIN_API_KEY` is not set (routes not registered)
 
 ### Provider Failures (502/504)
 
@@ -119,6 +126,29 @@ Check:
 - Direct transport-to-repository dependencies
 - Service references to HTTP response objects
 - Misplaced provider-specific schemas
+
+### Admin API Issues
+
+Symptoms: admin endpoints return unexpected errors.
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| 404 on `/v1/admin/*` | `ADMIN_API_KEY` not set | Set `ADMIN_API_KEY` env var and restart |
+| 403 on admin endpoint | Wrong admin key | Verify `ADMIN_API_KEY` matches the Bearer token |
+| 400 "provider not supported" | Invalid provider name | Only `brave` is supported in the current phase |
+| 400 "capability not supported" | Invalid capability | Only `search.web`, `search.news`, `search.images` are supported |
+| 404 "Project not found" | Project ID doesn't exist or is inactive | Create a project first via `POST /v1/admin/projects` |
+| Disabled key still works | Key was disabled but previous auth was cached | Keys are looked up per-request; verify the disable call returned 200 |
+
+### Per-Key Attribution
+
+Each downstream API key carries its own `apiKeyId` through the request lifecycle:
+
+- **Usage events**: `apiKeyId` field identifies which key made the request
+- **Audit logs**: `actorId` field (with `actorType: "api_key"`) identifies the key
+- **Rate limiting**: Shared per-project (not per-key); all keys on the same project share a counter
+
+To verify attribution, create two keys for the same project, make requests with each, and inspect the usage/audit records. Disabling one key should not affect the other.
 
 ## Logging
 
