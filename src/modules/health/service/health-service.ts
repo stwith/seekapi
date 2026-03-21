@@ -52,25 +52,36 @@ export class HealthService {
     if (!this.cachedSnapshot) return true;
     const entry = this.cachedSnapshot.find((r) => r.provider === providerId);
     if (!entry) return true;
-    // Only "healthy" and "unavailable" (couldn't probe) are considered OK.
-    // "degraded" means the probe ran with a credential and reported issues —
-    // routing should still try it but with lower priority. For now, only
-    // a confirmed hard-down state (which we'd classify differently) blocks.
-    return true; // optimistic — health-based routing refinement belongs in Task 15
+    // "healthy" → OK. "unavailable" (couldn't probe) → optimistic OK since
+    // project-scoped requests may have valid credentials. "degraded" → the
+    // probe ran with a credential and confirmed upstream issues. [AC4]
+    return entry.status !== "degraded";
   }
 
-  /** Return the latest provider health snapshot, probing if stale. */
+  /**
+   * Return the latest provider health snapshot, probing if stale.
+   *
+   * Each adapter probe is bounded to 10 s so that a single slow
+   * provider cannot stall the entire health endpoint. [AC4]
+   */
   async getProviderHealth(): Promise<ProviderHealthResult[]> {
     if (this.cachedSnapshot && Date.now() - this.cachedAt < this.cacheTtlMs) {
       return this.cachedSnapshot;
     }
 
     const adapters = this.deps.registry.list();
+    const probeTimeoutMs = 10_000;
+
     const results = await Promise.all(
       adapters.map(async (adapter) => {
         try {
           const credential = await this.deps.resolveHealthCredential(adapter.id);
-          const health = await adapter.healthCheck({ credential });
+          const health = await Promise.race([
+            adapter.healthCheck({ credential }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("probe timeout")), probeTimeoutMs),
+            ),
+          ]);
           return {
             provider: adapter.id,
             status: health.status,
@@ -91,9 +102,10 @@ export class HealthService {
     this.cachedSnapshot = results;
     this.cachedAt = Date.now();
 
-    // Persist snapshots if a sink is configured [AC3]
+    // Persist snapshots if a sink is configured [AC3].
+    // Fire-and-forget: sink failures must not block health responses. [AC4]
     if (this.deps.snapshotSink) {
-      await this.deps.snapshotSink.recordBatch(results);
+      this.deps.snapshotSink.recordBatch(results).catch(() => {});
     }
 
     return results;
