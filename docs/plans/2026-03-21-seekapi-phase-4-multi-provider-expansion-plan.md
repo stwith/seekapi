@@ -1,290 +1,224 @@
 # Phase 4: Multi-Provider Expansion Plan
 
 > **Goal:** Expand SeekAPI from a Brave-only gateway to a true multi-provider
-> search dispatcher by adding Tavily, Kagi, and SerpAPI — validating that the
-> canonical API, routing, fallback, and observability layers are genuinely
-> provider-neutral.
+> search dispatcher by adding Tavily, Kagi, and SerpAPI — with full backend
+> routing/fallback support and operator console integration.
 
-## Overview
+## Acceptance Criteria
 
-| Sub-phase | Provider | Capabilities | Key Validation |
-|-----------|----------|-------------|----------------|
-| **4A** | Tavily | search.web | 2-provider routing & fallback |
-| **4B** | Kagi | search.web, search.news | 3-provider policy, per-capability routing |
-| **4C** | SerpAPI | search.web, search.news, search.images | Full parity, all capabilities covered by 2+ providers |
+- **AC1:** Each new provider adapter implements `ProviderAdapter` and passes unit tests equivalent to Brave coverage.
+- **AC2:** Routing, fallback, and health-aware selection work deterministically across all registered providers.
+- **AC3:** Usage, audit, and metrics correctly attribute provider for every request across all combinations.
+- **AC4:** No canonical route, search service, or usage/audit layer is modified — all changes confined to provider adapters, registry, allowlist, and frontend.
+- **AC5:** Per-project, per-capability provider bindings are configurable via admin API and operator console.
+- **AC6:** Operator console fully supports multi-provider: credential management, binding configuration, provider-scoped stats, and provider health display.
+- **AC7:** `bash scripts/validate.sh` passes after each sub-phase.
 
-**Architecture invariant:** No canonical route, search service, or usage/audit
-layer needs modification. All changes are confined to:
-- `src/providers/<name>/` (new adapter code)
-- `src/modules/admin/service/admin-service.ts` (ALLOWED_PROVIDERS allowlist)
-- `src/app/build-app.ts` (registry registration)
-- `src/app/bootstrap.ts` (dev seed data)
-- `tests/` (new and extended tests)
-- `docs/` (operator docs)
+## Constraints
 
-**Delivery gate:** `bash scripts/validate.sh` must pass after each sub-phase.
+- Provider-specific schemas stay inside `src/providers/<name>/` — never leak to canonical contracts. [AC4]
+- Adapters must not read HTTP request objects, enforce project auth, or bypass routing policy.
+- Transport layer must not access repositories directly. Services must not depend on HTTP response objects. (Enforced by `scripts/check-architecture.sh`)
+- Raw provider secrets must never be logged or stored in plaintext.
+- All provider HTTP calls are mocked in unit tests; real calls only in manual smoke.
+- `pnpm` is the only package manager (not npm or yarn).
+- Every AC tag must have coverage in the codebase (enforced by `scripts/check-ac-coverage.sh`).
+
+## Non-Goals
+
+- Adding new canonical capabilities (`search.answer`, `search.extract`, etc.)
+- Billing or usage-based pricing
+- Multi-provider fanout (parallel query to multiple providers)
+- Provider-specific fields in canonical request/response top-level schema
+- OpenAI-compatible proxy endpoints
+
+## Provider Capability Matrix
+
+| Capability | Brave | Tavily | Kagi | SerpAPI |
+|-----------|-------|--------|------|---------|
+| search.web | ✅ | ✅ | ✅ | ✅ |
+| search.news | ✅ | — | ✅ | ✅ |
+| search.images | ✅ | — | — | ✅ |
+
+After completion, every MVP capability is covered by at least 2 providers.
 
 ---
 
-## Phase 4A: Tavily Adapter
+## Phase 4A: Tavily (2-provider validation)
 
 **Why first:** Tavily's API is the closest fit to the canonical search model —
-single endpoint, JSON in/out, built-in answer extraction. Lowest mapping
-friction makes it ideal for validating the multi-provider wiring.
+single POST endpoint, JSON in/out, built-in answer extraction. Lowest mapping
+friction makes it ideal for validating multi-provider wiring.
 
 ### Tavily API Reference
 
 | Item | Value |
 |------|-------|
 | Base URL | `https://api.tavily.com` |
-| Auth | `api_key` field in request body (or `Authorization: Bearer`) |
+| Auth | `api_key` field in request body |
 | Search endpoint | `POST /search` |
-| Capabilities | Web search (primary), with optional `topic: "news"` for news-like results |
+| Supported capabilities | `search.web` |
 
-**Request shape:**
+**Request:**
 ```json
 {
   "api_key": "<key>",
   "query": "...",
-  "search_depth": "basic" | "advanced",
+  "search_depth": "basic",
   "max_results": 5,
   "include_answer": true,
   "include_domains": ["example.com"],
-  "exclude_domains": ["spam.com"],
-  "topic": "general" | "news"
+  "exclude_domains": ["spam.com"]
 }
 ```
 
-**Response shape:**
+**Response:**
 ```json
 {
-  "query": "...",
   "answer": "AI-generated answer...",
   "results": [
-    {
-      "title": "...",
-      "url": "...",
-      "content": "...",
-      "score": 0.95,
-      "published_date": "2026-03-21"
-    }
+    { "title": "...", "url": "...", "content": "...", "score": 0.95, "published_date": "2026-03-21" }
   ]
 }
 ```
 
-### Tasks
+### Task 41: Tavily adapter implementation [AC1]
 
-#### Task 41: Tavily adapter implementation
-
-**Files to create:**
-- `src/providers/tavily/schemas.ts` — Tavily-specific request/response types
+**Create:**
+- `src/providers/tavily/schemas.ts` — Tavily-specific request/response types (internal only)
 - `src/providers/tavily/client.ts` — HTTP client with error categorization
 - `src/providers/tavily/mapper.ts` — Canonical ↔ Tavily mapping
 - `src/providers/tavily/adapter.ts` — `TavilyAdapter implements ProviderAdapter`
 
-**Adapter contract:**
-```typescript
-class TavilyAdapter implements ProviderAdapter {
-  readonly id = "tavily";
-  supportedCapabilities() { return ["search.web"]; }
-  // credential: Tavily API key string
-  // execute: map canonical → POST /search → map response
-  // healthCheck: lightweight search with 5s timeout
-}
-```
-
-**Mapping rules:**
+**Mapping:**
 | Canonical | Tavily |
 |-----------|--------|
 | `query` | `query` |
-| `maxResults` | `max_results` (default 5, max 20) |
+| `maxResults` | `max_results` (max 20) |
 | `includeDomains` | `include_domains` |
 | `excludeDomains` | `exclude_domains` |
-| `timeRange` | Not directly supported; pass through or ignore |
+| `timeRange` | Not supported; ignore |
 | `country` / `locale` | Not supported; ignore |
-| Response `content` | Map to `snippet` |
-| Response `score` | Map to `score` |
-| Response `published_date` | Map to `publishedAt` |
-| Response `answer` | Map to `answer` field in CanonicalSearchResponse |
+| Response `content` → `snippet` | Response `score` → `score` |
+| Response `published_date` → `publishedAt` | Response `answer` → `answer` |
 
 **Error categorization:**
-| Tavily HTTP status | ProviderError category |
-|--------------------|----------------------|
-| 401 / 403 | `bad_credential` |
+| HTTP status | ProviderError category |
+|-------------|----------------------|
+| 401/403 | `bad_credential` |
 | 429 | `rate_limited` |
 | 5xx | `upstream_5xx` |
-| Network error | `timeout` |
+| Network | `timeout` |
 
-**AC:** TavilyAdapter passes unit tests equivalent to BraveAdapter test coverage.
+### Task 42: Tavily registration, allowlist, and unit tests [AC1][AC2]
 
-#### Task 42: Tavily registration and allowlist
-
-**Files to modify:**
+**Modify:**
 - `src/app/build-app.ts` — `registry.register(new TavilyAdapter())`
 - `src/modules/admin/service/admin-service.ts` — Add `"tavily"` to `ALLOWED_PROVIDERS`
 
-**AC:** Tavily adapter is instantiated and available in the registry at boot.
+**Create:**
+- `tests/providers/tavily-adapter.test.ts` — Unit tests (schema mapping, error handling, health probe, credential validation)
 
-#### Task 43: Two-provider routing and fallback tests
+### Task 43: Two-provider routing integration tests [AC2][AC3]
 
-**Files to create/modify:**
-- `tests/providers/tavily-adapter.test.ts` — Unit tests (schema mapping, error handling, health probe)
-- `tests/routing/multi-provider-routing.test.ts` — Integration tests proving:
+**Create:**
+- `tests/routing/multi-provider-routing.test.ts` — Integration tests:
   - Default provider selection respects project binding
-  - Fallback from Brave → Tavily on retryable error
-  - Fallback from Tavily → Brave on retryable error
-  - Explicit `provider: "tavily"` in request body routes correctly
+  - Fallback Brave → Tavily on retryable error (and reverse)
+  - Explicit `provider: "tavily"` routes correctly
   - Health-aware exclusion works across both providers
   - Usage events record correct provider for each attempt
+  - Non-retryable errors (bad_credential) fail fast without fallback
 
-**AC:** All routing tests pass with 2-provider configurations. Fallback is deterministic.
+### Task 44: Tavily dev seed and documentation [AC7]
 
-#### Task 44: Dev seed and operator documentation
+**Modify:**
+- `src/app/bootstrap.ts` — Add Tavily seed binding and credential (`TAVILY_API_KEY` env var)
+- `docs/debugging.md` — Add Tavily env var, error patterns, and capability info
 
-**Files to modify:**
-- `src/app/bootstrap.ts` — Add Tavily seed bindings and credential (from `TAVILY_API_KEY` env var)
-- `docs/debugging.md` — Add Tavily endpoints, env vars, and troubleshooting
-
-**Seed config:**
-```typescript
-bindings: [
-  { provider: "brave",  capability: "search.web", enabled: true, priority: 0 },
-  { provider: "tavily", capability: "search.web", enabled: true, priority: 1 },
-]
-// Brave is default, Tavily is fallback for search.web
+**Seed:**
 ```
-
-**AC:** `TAVILY_API_KEY=xxx pnpm start` boots with both providers available.
-Operator can attach Tavily credentials via admin API and route requests to it.
+search.web: brave (priority 0, default), tavily (priority 1, fallback)
+```
 
 ---
 
-## Phase 4B: Kagi Adapter
+## Phase 4B: Kagi (3-provider, per-capability routing)
 
-**Why second:** Kagi supports both web and news search, which tests
-per-capability routing — a project can use Brave for images but Kagi for web.
+**Why second:** Kagi supports web + news, testing per-capability routing —
+a project can use Kagi for web but Brave for images.
 
 ### Kagi API Reference
 
 | Item | Value |
 |------|-------|
 | Base URL | `https://kagi.com/api/v0` |
-| Auth | `Authorization: Bot <token>` |
-| Search endpoint | `GET /search?q=...` |
-| Capabilities | Web search, news (via result filtering) |
+| Auth | `Authorization: Bot <token>` header |
+| Search endpoint | `GET /search?q=...&limit=N` |
+| Supported capabilities | `search.web`, `search.news` |
 
-**Request (query params):**
-```
-GET /search?q=<query>&limit=<n>
-```
-
-**Response shape:**
+**Response:**
 ```json
 {
-  "meta": { "id": "...", "node": "...", "ms": 123 },
+  "meta": { "id": "...", "ms": 123 },
   "data": [
-    {
-      "t": 0,
-      "rank": 1,
-      "url": "https://...",
-      "title": "...",
-      "snippet": "...",
-      "published": "2026-03-21T..."
-    }
+    { "t": 0, "url": "...", "title": "...", "snippet": "...", "published": "2026-03-21T..." }
   ]
 }
 ```
+Result type `t=0` = web, `t=1` = news.
 
-Result types: `t=0` = organic web result, `t=1` = news result.
+### Task 45: Kagi adapter implementation [AC1]
 
-### Tasks
-
-#### Task 45: Kagi adapter implementation
-
-**Files to create:**
+**Create:**
 - `src/providers/kagi/schemas.ts` — Kagi-specific types
-- `src/providers/kagi/client.ts` — HTTP client (`GET` with query params, `Bot` auth header)
-- `src/providers/kagi/mapper.ts` — Canonical ↔ Kagi mapping
+- `src/providers/kagi/client.ts` — HTTP client (GET, `Bot` auth header)
+- `src/providers/kagi/mapper.ts` — Canonical ↔ Kagi mapping; `t=0` → web, `t=1` → news
 - `src/providers/kagi/adapter.ts` — `KagiAdapter implements ProviderAdapter`
 
-**Adapter contract:**
-```typescript
-class KagiAdapter implements ProviderAdapter {
-  readonly id = "kagi";
-  supportedCapabilities() { return ["search.web", "search.news"]; }
-}
-```
-
-**Mapping rules:**
+**Mapping:**
 | Canonical | Kagi |
 |-----------|------|
 | `query` | `q` query param |
-| `maxResults` | `limit` query param |
-| `timeRange` | Not directly supported |
-| `includeDomains` / `excludeDomains` | Append to query string (e.g., `site:example.com`) |
-| Response `t=0` items | Map to web results |
-| Response `t=1` items | Map to news results |
-| Response `meta.ms` | Map to `latencyMs` |
+| `maxResults` | `limit` |
+| `includeDomains` | Append `site:` to query |
+| `excludeDomains` | Append `-site:` to query |
+| `meta.ms` → `latencyMs` | Filter by `t` for capability |
 
-**Capability routing:**
-- `search.web`: Return `t=0` results
-- `search.news`: Return `t=1` results (filter from same endpoint)
+### Task 46: Kagi registration and 3-provider routing tests [AC1][AC2]
 
-**Error categorization:**
-| Kagi HTTP status | ProviderError category |
-|-----------------|----------------------|
-| 401 | `bad_credential` |
-| 429 | `rate_limited` |
-| 5xx | `upstream_5xx` |
-
-**AC:** KagiAdapter passes unit tests for both web and news capabilities.
-
-#### Task 46: Kagi registration and 3-provider routing tests
-
-**Files to modify:**
+**Modify:**
 - `src/app/build-app.ts` — `registry.register(new KagiAdapter())`
 - `src/modules/admin/service/admin-service.ts` — Add `"kagi"` to `ALLOWED_PROVIDERS`
 
-**Files to create/modify:**
-- `tests/providers/kagi-adapter.test.ts` — Unit tests
-- `tests/routing/multi-provider-routing.test.ts` — Extend with 3-provider scenarios:
-  - Per-capability default: Brave for images, Kagi for web, Tavily as fallback
+**Create:**
+- `tests/providers/kagi-adapter.test.ts` — Unit tests (web + news capabilities)
+
+**Extend:**
+- `tests/routing/multi-provider-routing.test.ts` — 3-provider scenarios:
+  - Per-capability default: Kagi for web, Brave for images
   - Fallback chain: Kagi → Brave → Tavily for search.web
-  - Provider health exclusion with 3 providers
-  - Registry `byCapability()` returns correct adapters per capability
+  - `registry.byCapability()` returns correct adapters per capability
 
-**AC:** 3-provider routing is deterministic. Per-capability policy works correctly.
+### Task 47: Kagi dev seed and documentation [AC7]
 
-#### Task 47: Kagi dev seed and documentation
-
-**Files to modify:**
+**Modify:**
 - `src/app/bootstrap.ts` — Add Kagi seed bindings (`KAGI_API_KEY` env var)
 - `docs/debugging.md` — Add Kagi section
 
-**Seed config:**
-```typescript
-bindings: [
-  // search.web: Brave default, Kagi fallback, Tavily fallback
-  { provider: "brave",  capability: "search.web",    enabled: true, priority: 0 },
-  { provider: "kagi",   capability: "search.web",    enabled: true, priority: 1 },
-  { provider: "tavily", capability: "search.web",    enabled: true, priority: 2 },
-  // search.news: Brave default, Kagi fallback
-  { provider: "brave",  capability: "search.news",   enabled: true, priority: 0 },
-  { provider: "kagi",   capability: "search.news",   enabled: true, priority: 1 },
-  // search.images: Brave only
-  { provider: "brave",  capability: "search.images",  enabled: true, priority: 0 },
-]
+**Seed:**
 ```
-
-**AC:** Operator can configure per-capability routing across 3 providers.
+search.web:    brave (0), kagi (1), tavily (2)
+search.news:   brave (0), kagi (1)
+search.images: brave (0)
+```
 
 ---
 
-## Phase 4C: SerpAPI Adapter
+## Phase 4C: SerpAPI (full capability coverage)
 
-**Why third:** SerpAPI wraps Google/Bing and supports all three MVP capabilities
-(web, news, images), completing full capability coverage with 2+ providers per
-capability. Also validates the `options` pass-through for engine selection.
+**Why third:** SerpAPI wraps Google/Bing and supports all 3 MVP capabilities,
+completing the matrix so every capability has ≥2 providers.
 
 ### SerpAPI Reference
 
@@ -293,236 +227,298 @@ capability. Also validates the `options` pass-through for engine selection.
 | Base URL | `https://serpapi.com` |
 | Auth | `api_key` query param |
 | Search endpoint | `GET /search?engine=google&q=...&api_key=...` |
-| Capabilities | Web, news, images (via `tbm` param) |
+| Supported capabilities | `search.web`, `search.news`, `search.images` |
 
-**Request (query params):**
-```
-GET /search?engine=google&q=<query>&api_key=<key>&num=<n>
-    &tbm=         (web, default)
-    &tbm=nws      (news)
-    &tbm=isch     (images)
-```
+**Capability → `tbm` param:** web = (omit), news = `nws`, images = `isch`
 
-**Response shape (web):**
-```json
-{
-  "search_metadata": { "total_time_taken": 1.23 },
-  "organic_results": [
-    {
-      "position": 1,
-      "title": "...",
-      "link": "https://...",
-      "snippet": "...",
-      "date": "3 days ago"
-    }
-  ]
-}
-```
+**Response keys:** `organic_results` (web), `news_results` (news), `images_results` (images)
 
-**Response shape (news — `tbm=nws`):**
-```json
-{
-  "news_results": [
-    {
-      "position": 1,
-      "title": "...",
-      "link": "https://...",
-      "snippet": "...",
-      "date": "2 hours ago",
-      "source": "Reuters"
-    }
-  ]
-}
-```
+### Task 48: SerpAPI adapter implementation [AC1]
 
-**Response shape (images — `tbm=isch`):**
-```json
-{
-  "images_results": [
-    {
-      "position": 1,
-      "title": "...",
-      "original": "https://...",
-      "thumbnail": "https://...",
-      "source": "example.com"
-    }
-  ]
-}
-```
-
-### Tasks
-
-#### Task 48: SerpAPI adapter implementation
-
-**Files to create:**
-- `src/providers/serpapi/schemas.ts` — SerpAPI-specific types (web, news, images)
-- `src/providers/serpapi/client.ts` — HTTP client (`GET` with query params)
-- `src/providers/serpapi/mapper.ts` — Canonical ↔ SerpAPI mapping (3 capabilities)
+**Create:**
+- `src/providers/serpapi/schemas.ts` — SerpAPI-specific types (web, news, images responses)
+- `src/providers/serpapi/client.ts` — HTTP client (GET with query params)
+- `src/providers/serpapi/mapper.ts` — 3-capability mapping
 - `src/providers/serpapi/adapter.ts` — `SerpApiAdapter implements ProviderAdapter`
 
-**Adapter contract:**
-```typescript
-class SerpApiAdapter implements ProviderAdapter {
-  readonly id = "serpapi";
-  supportedCapabilities() {
-    return ["search.web", "search.news", "search.images"];
-  }
-}
-```
-
-**Mapping rules:**
+**Mapping:**
 | Canonical | SerpAPI |
 |-----------|---------|
 | `query` | `q` |
 | `maxResults` | `num` |
-| `country` | `gl` (Google country code) |
-| `locale` | `hl` (Google language code) |
+| `country` | `gl` |
+| `locale` | `hl` |
 | `timeRange: "day"` | `tbs=qdr:d` |
-| `timeRange: "week"` | `tbs=qdr:w` |
-| `timeRange: "month"` | `tbs=qdr:m` |
-| `timeRange: "year"` | `tbs=qdr:y` |
 | `includeDomains` | Append `site:` to query |
-| `excludeDomains` | Append `-site:` to query |
 | `options.engine` | `engine` param (default `"google"`) |
-| Web: `organic_results[].link` | `url` |
-| Web: `organic_results[].snippet` | `snippet` |
-| News: `news_results[].link` | `url` |
-| News: `news_results[].source` | `sourceType` |
-| Images: `images_results[].original` | `url` |
-| Images: `images_results[].thumbnail` | Map to `extensions.thumbnail` |
 
-**Capability → request param mapping:**
-| Capability | `tbm` param |
-|-----------|-------------|
-| `search.web` | (omit) |
-| `search.news` | `nws` |
-| `search.images` | `isch` |
+### Task 49: SerpAPI registration and full-coverage routing tests [AC1][AC2][AC3]
 
-**Error categorization:**
-| SerpAPI HTTP status | ProviderError category |
-|--------------------|----------------------|
-| 401 / 403 | `bad_credential` |
-| 429 | `rate_limited` |
-| 5xx | `upstream_5xx` |
-
-**AC:** SerpApiAdapter passes unit tests for all 3 capabilities.
-
-#### Task 49: SerpAPI registration and full-coverage routing tests
-
-**Files to modify:**
+**Modify:**
 - `src/app/build-app.ts` — `registry.register(new SerpApiAdapter())`
 - `src/modules/admin/service/admin-service.ts` — Add `"serpapi"` to `ALLOWED_PROVIDERS`
 
-**Files to create/modify:**
+**Create:**
 - `tests/providers/serpapi-adapter.test.ts` — Unit tests (web, news, images)
-- `tests/routing/multi-provider-routing.test.ts` — Extend with 4-provider scenarios:
-  - Every MVP capability covered by at least 2 providers
-  - Full fallback chain across 4 providers for search.web
-  - search.images: Brave → SerpAPI fallback (only 2 support it)
+
+**Extend:**
+- `tests/routing/multi-provider-routing.test.ts` — 4-provider scenarios:
+  - Every MVP capability covered by ≥2 providers
+  - search.images fallback: Brave → SerpAPI
+  - Per-project isolation: Project A uses Brave+Tavily, Project B uses Kagi+SerpAPI
   - Usage events correctly attribute provider across all combinations
-  - Per-project policy isolation: Project A uses Brave+Tavily, Project B uses Kagi+SerpAPI
 
-**Capability coverage matrix after Phase 4C:**
+### Task 50: SerpAPI dev seed and documentation [AC7]
 
-| Capability | Brave | Tavily | Kagi | SerpAPI |
-|-----------|-------|--------|------|---------|
-| search.web | ✅ | ✅ | ✅ | ✅ |
-| search.news | ✅ | — | ✅ | ✅ |
-| search.images | ✅ | — | — | ✅ |
-
-**AC:** All MVP capabilities have at least 2 provider options. Routing tests
-prove any combination works.
-
-#### Task 50: SerpAPI dev seed and final documentation
-
-**Files to modify:**
+**Modify:**
 - `src/app/bootstrap.ts` — Add SerpAPI seed bindings (`SERPAPI_API_KEY` env var)
 - `docs/debugging.md` — Add SerpAPI section, update provider matrix
 
-**Final seed config:**
-```typescript
-bindings: [
-  // search.web: 4 providers available
-  { provider: "brave",   capability: "search.web",    enabled: true, priority: 0 },
-  { provider: "kagi",    capability: "search.web",    enabled: true, priority: 1 },
-  { provider: "tavily",  capability: "search.web",    enabled: true, priority: 2 },
-  { provider: "serpapi",  capability: "search.web",    enabled: true, priority: 3 },
-  // search.news: 3 providers
-  { provider: "brave",   capability: "search.news",   enabled: true, priority: 0 },
-  { provider: "kagi",    capability: "search.news",   enabled: true, priority: 1 },
-  { provider: "serpapi",  capability: "search.news",   enabled: true, priority: 2 },
-  // search.images: 2 providers
-  { provider: "brave",   capability: "search.images",  enabled: true, priority: 0 },
-  { provider: "serpapi",  capability: "search.images",  enabled: true, priority: 1 },
-]
+**Final seed:**
 ```
-
-**AC:** Full multi-provider documentation. Operator can independently configure
-any combination of providers per project per capability.
+search.web:    brave (0), kagi (1), tavily (2), serpapi (3)
+search.news:   brave (0), kagi (1), serpapi (2)
+search.images: brave (0), serpapi (1)
+```
 
 ---
 
-## Phase 4D: Operator console multi-provider support
+## Phase 4D: Operator Console Multi-Provider Support
 
-#### Task 51: Frontend provider management enhancements
+### Task 51: Backend — provider stats endpoint [AC3][AC6]
 
-**Changes needed:**
-- **Dashboard**: Provider breakdown chart (requests per provider)
-- **Keys page**: No changes needed (provider-agnostic)
-- **Usage page**: Add provider filter dropdown (dynamic from backend)
-- **Subscriptions page**: No changes needed (provider-agnostic)
-- **Project detail page**: Show provider bindings with priority ordering, allow
-  reordering and toggling per-provider per-capability
+**Create new endpoint:**
+- `GET /v1/admin/stats/providers` — Returns per-provider request breakdown
 
-**AC:** Operator console reflects multi-provider reality. Dashboard shows
-per-provider stats, usage page filters by provider, project detail shows
-binding configuration.
+**Response:**
+```json
+{
+  "providers": [
+    { "provider": "brave", "requestCount": 500, "successCount": 480, "failureCount": 20, "avgLatencyMs": 120 },
+    { "provider": "tavily", "requestCount": 100, "successCount": 98, "failureCount": 2, "avgLatencyMs": 85 }
+  ]
+}
+```
 
-#### Task 52: End-to-end multi-provider smoke test
+**Modify:**
+- `src/modules/admin/service/admin-service.ts` — Add `getProviderBreakdown(filters)` method
+- `src/modules/admin/http/routes.ts` — Register `GET /v1/admin/stats/providers`
+- `src/infra/db/repositories/usage-event-repository.ts` — Add `perProviderStats(filters)` query
 
-**Files to create:**
+**Create:**
+- `tests/admin/provider-stats-routes.test.ts` — Tests for new endpoint
+
+### Task 52: Backend — registered providers list endpoint [AC6]
+
+**Create new endpoint:**
+- `GET /v1/admin/providers` — Returns all registered providers with capabilities and health
+
+**Response:**
+```json
+{
+  "providers": [
+    { "id": "brave", "capabilities": ["search.web", "search.news", "search.images"], "health": "healthy" },
+    { "id": "tavily", "capabilities": ["search.web"], "health": "unavailable" },
+    { "id": "kagi", "capabilities": ["search.web", "search.news"], "health": "healthy" },
+    { "id": "serpapi", "capabilities": ["search.web", "search.news", "search.images"], "health": "degraded" }
+  ]
+}
+```
+
+**Modify:**
+- `src/modules/admin/http/routes.ts` — Register route
+- Wire `ProviderRegistry` and `HealthService` into admin route deps
+
+**Create:**
+- Tests in `tests/admin/provider-stats-routes.test.ts`
+
+### Task 53: Frontend — Project Detail multi-provider support [AC5][AC6]
+
+Currently the Project Detail page (`frontend/src/routes/projects/ProjectDetail.tsx`) is
+hardcoded to Brave — credential form says "Brave API secret", binding form only offers
+`provider: "brave"`, priority is hardcoded to 0.
+
+**Changes:**
+- **Credential section:** Add provider selector dropdown (populated from `GET /v1/admin/providers`). Show per-provider credential status. Allow attaching credentials for any registered provider.
+- **Binding section:** Add provider selector to binding form. Show priority field as editable number input. Allow configuring bindings for any provider × capability combination.
+- **Binding table:** Show all bindings with enable/disable toggle and priority reordering.
+
+**Modify:**
+- `frontend/src/routes/projects/ProjectDetail.tsx` — Multi-provider credential and binding UI
+- `frontend/src/lib/api.ts` — Add `listProviders()` API call
+
+### Task 54: Frontend — Dashboard provider breakdown chart [AC6]
+
+**Changes to Dashboard (`frontend/src/routes/dashboard/Dashboard.tsx`):**
+- Add "Requests by Provider" section below the existing capability breakdown
+- Fetch data from `GET /v1/admin/stats/providers`
+- Display horizontal bar chart (same style as capability breakdown) showing request count per provider
+- Respect the existing project filter — pass `projectId` to provider stats endpoint
+
+**Modify:**
+- `frontend/src/routes/dashboard/Dashboard.tsx` — Add provider breakdown section
+- `frontend/src/lib/api.ts` — Add `getProviderBreakdown()` API call
+
+### Task 55: Frontend — Usage page provider filter [AC6]
+
+**Changes to UsagePage (`frontend/src/routes/usage/UsagePage.tsx`):**
+- Add provider filter dropdown (populated dynamically from `GET /v1/admin/providers`)
+- Pass `provider` param to usage query endpoint
+- CSV export includes provider column (already present in data)
+
+**Modify:**
+- `frontend/src/routes/usage/UsagePage.tsx` — Add provider filter select
+- `frontend/src/lib/api.ts` — Add `listProviders()` if not added in Task 53
+
+### Task 56: Frontend — Providers page (new) [AC6]
+
+**Create new page at `/providers`:**
+- Shows all registered providers as cards
+- Each card: provider name, supported capabilities (badges), health status (StatusBadge), latency
+- Health data from `GET /v1/health/providers` (already exists)
+- Provider list from `GET /v1/admin/providers` (added in Task 52)
+
+**Create:**
+- `frontend/src/routes/providers/ProvidersPage.tsx`
+
+**Modify:**
+- `frontend/src/app/App.tsx` — Add `/providers` route
+- `frontend/src/components/layout/Shell.tsx` — Add "Providers" nav item
+
+### Task 57: Frontend tests for multi-provider pages [AC6][AC7]
+
+**Create:**
+- `frontend/src/__tests__/multi-provider.test.tsx` — Tests for:
+  - ProvidersPage renders provider cards with health status
+  - Dashboard shows provider breakdown section
+  - UsagePage has provider filter dropdown
+  - ProjectDetail shows multi-provider credential form and binding controls
+
+**Modify:**
+- `frontend/src/__tests__/new-pages.test.tsx` — Update Dashboard tests for provider breakdown
+
+---
+
+## Phase 4E: End-to-End Validation
+
+### Task 58: Multi-provider E2E integration test [AC2][AC3][AC4]
+
+**Create:**
 - `tests/e2e/multi-provider-wiring.test.ts`
 
-**Test scenarios:**
-1. Boot with 4 registered providers (mocked HTTP for each)
-2. Send search.web request → routed to default provider
+**Scenarios:**
+1. Boot with 4 registered providers (mocked HTTP)
+2. `POST /v1/search/web` → routes to default provider
 3. Default provider returns 503 → fallback to next in chain
 4. Explicit `provider: "serpapi"` → routes to SerpAPI
 5. Disable provider binding via admin API → excluded from routing
-6. Usage events show correct provider attribution for each request
+6. Usage events correctly attribute provider for each request
 7. Health endpoint shows status for all 4 providers
+8. Provider stats endpoint aggregates correctly
 
-**AC:** Single integration test proves the entire multi-provider lifecycle.
+### Task 59: Final documentation and validation [AC7]
+
+**Modify:**
+- `docs/debugging.md` — Final provider matrix, all env vars, complete endpoint reference
+- `docs/plans/2026-03-21-seekapi-phase-4-multi-provider-expansion-plan.md` — Mark completed
+
+**Verify:**
+- `bash scripts/validate.sh` passes
+- Architecture checks pass (no transport→repository violations)
+- AC coverage checks pass (all AC tags have evidence)
+- Smoke test passes
 
 ---
 
-## Execution Order & Dependencies
+## Execution Order and Dependencies
 
 ```
-Phase 4A (Tavily)
-  Task 41: Adapter impl          ← standalone
-  Task 42: Registration          ← depends on 41
-  Task 43: 2-provider routing    ← depends on 42
-  Task 44: Seed & docs           ← depends on 42
+Phase 4A: Tavily
+  Task 41: Adapter impl               ← standalone
+  Task 42: Registration + unit tests   ← depends on 41
+  Task 43: 2-provider routing tests    ← depends on 42
+  Task 44: Seed + docs                 ← depends on 42
 
-Phase 4B (Kagi)
-  Task 45: Adapter impl          ← standalone (can parallel with 4A)
-  Task 46: Registration + tests  ← depends on 45, 43
-  Task 47: Seed & docs           ← depends on 46
+Phase 4B: Kagi
+  Task 45: Adapter impl               ← standalone (can parallel with 4A tasks)
+  Task 46: Registration + routing      ← depends on 45, 43
+  Task 47: Seed + docs                 ← depends on 46
 
-Phase 4C (SerpAPI)
-  Task 48: Adapter impl          ← standalone (can parallel with 4B)
-  Task 49: Registration + tests  ← depends on 48, 46
-  Task 50: Seed & docs           ← depends on 49
+Phase 4C: SerpAPI
+  Task 48: Adapter impl               ← standalone (can parallel with 4B tasks)
+  Task 49: Registration + routing      ← depends on 48, 46
+  Task 50: Seed + docs                 ← depends on 49
 
-Phase 4D (Frontend + E2E)
-  Task 51: Console enhancements  ← depends on 49
-  Task 52: E2E smoke test        ← depends on 49
+Phase 4D: Operator Console
+  Task 51: Provider stats endpoint     ← depends on 49 (all providers registered)
+  Task 52: Providers list endpoint     ← depends on 49
+  Task 53: ProjectDetail multi-prov    ← depends on 52
+  Task 54: Dashboard provider chart    ← depends on 51
+  Task 55: Usage page provider filter  ← depends on 52
+  Task 56: Providers page (new)        ← depends on 52
+  Task 57: Frontend tests              ← depends on 53-56
+
+Phase 4E: Validation
+  Task 58: E2E integration test        ← depends on 49
+  Task 59: Final docs + validation     ← depends on all
 ```
 
-**Parallelization opportunity:** Adapter implementations (41, 45, 48) are
-independent and can be developed in parallel. Registration and routing tests
-must be sequential to validate incremental provider additions.
+**Parallelization:** Adapter implementations (41, 45, 48) are independent.
+Phase 4D tasks 53-56 are independent of each other once 51-52 are done.
+
+---
+
+## Files Changed Summary
+
+### New files (by provider)
+
+| Provider | Files |
+|----------|-------|
+| Tavily | `src/providers/tavily/{schemas,client,mapper,adapter}.ts`, `tests/providers/tavily-adapter.test.ts` |
+| Kagi | `src/providers/kagi/{schemas,client,mapper,adapter}.ts`, `tests/providers/kagi-adapter.test.ts` |
+| SerpAPI | `src/providers/serpapi/{schemas,client,mapper,adapter}.ts`, `tests/providers/serpapi-adapter.test.ts` |
+
+### New files (shared)
+
+| File | Purpose |
+|------|---------|
+| `tests/routing/multi-provider-routing.test.ts` | Cross-provider routing integration |
+| `tests/e2e/multi-provider-wiring.test.ts` | Full lifecycle E2E test |
+| `tests/admin/provider-stats-routes.test.ts` | Provider stats endpoint tests |
+| `frontend/src/routes/providers/ProvidersPage.tsx` | New Providers page |
+| `frontend/src/__tests__/multi-provider.test.tsx` | Multi-provider frontend tests |
+
+### Modified files
+
+| File | Change |
+|------|--------|
+| `src/app/build-app.ts` | Register 3 new adapters |
+| `src/app/bootstrap.ts` | Add seed bindings and credentials for 3 providers |
+| `src/modules/admin/service/admin-service.ts` | Expand `ALLOWED_PROVIDERS` |
+| `src/modules/admin/http/routes.ts` | Add provider stats + list endpoints |
+| `src/infra/db/repositories/usage-event-repository.ts` | Add `perProviderStats()` query |
+| `frontend/src/app/App.tsx` | Add `/providers` route |
+| `frontend/src/components/layout/Shell.tsx` | Add "Providers" nav item |
+| `frontend/src/lib/api.ts` | Add `listProviders()`, `getProviderBreakdown()` |
+| `frontend/src/routes/projects/ProjectDetail.tsx` | Multi-provider credential/binding UI |
+| `frontend/src/routes/dashboard/Dashboard.tsx` | Add provider breakdown section |
+| `frontend/src/routes/usage/UsagePage.tsx` | Add provider filter |
+| `docs/debugging.md` | Full multi-provider docs |
+
+---
+
+## Architecture Fence Compliance
+
+| Rule | How this plan complies |
+|------|----------------------|
+| Transport → Repository banned | All new endpoints call service methods, not repositories [AC4] |
+| Service → HTTP response banned | Adapter/service return domain types; routes shape HTTP responses [AC4] |
+| Provider schemas internal only | Each provider's `schemas.ts` is only imported within its own directory [AC4] |
+| Canonical routes provider-neutral | No changes to `/v1/search/*` routes — same paths, same schemas [AC4] |
+| Secrets encrypted at rest | Same AES-256-GCM encryption via `CredentialService` for all providers |
+| Frontend → HTTP only | Console calls admin/health endpoints; no direct DB/Redis access [AC6] |
+| `validate.sh` delivery gate | Required to pass after each sub-phase [AC7] |
+| AC coverage check | Every AC tag appears in tests or implementation [AC7] |
 
 ---
 
@@ -531,11 +527,11 @@ must be sequential to validate incremental provider additions.
 | Risk | Mitigation |
 |------|-----------|
 | Provider API changes | Adapter isolation — changes contained to `src/providers/<name>/` |
-| Rate limiting during tests | All provider HTTP calls mocked in unit tests; real calls only in manual smoke |
-| Credential leakage | Same AES-256-GCM encryption as Brave; never log raw secrets |
-| Inconsistent response quality | Canonical response normalization; tests verify mapping correctness |
+| Rate limiting during tests | All provider HTTP calls mocked; real calls only in manual smoke |
+| Credential leakage | Same AES-256-GCM as Brave; secrets never logged |
+| Inconsistent response quality | Canonical normalization; per-adapter mapping tests |
 | Routing complexity at 4 providers | Routing service already handles N providers; tests prove determinism |
-| Provider downtime | Health probes + fallback chain; degraded provider excluded from routing |
+| Frontend hardcoded to Brave | Task 53 explicitly removes Brave hardcoding from ProjectDetail |
 
 ---
 
@@ -543,11 +539,11 @@ must be sequential to validate incremental provider additions.
 
 Phase 4 is complete when:
 
-1. **4 providers registered** (Brave, Tavily, Kagi, SerpAPI)
-2. **All 3 MVP capabilities** covered by at least 2 providers
-3. **Fallback works** across any provider combination
-4. **Per-project, per-capability routing** is configurable via admin API
-5. **Usage/audit/metrics** correctly attribute provider for every request
-6. **No canonical route changes** — same API for downstream consumers
-7. **`bash scripts/validate.sh` passes** with all new tests
-8. **Operator console** shows multi-provider stats and configuration
+1. 4 providers registered (Brave, Tavily, Kagi, SerpAPI) [AC1]
+2. All 3 MVP capabilities covered by ≥2 providers [AC1]
+3. Fallback works across any provider combination [AC2]
+4. Per-project, per-capability routing configurable via admin API and console [AC5]
+5. Usage/audit/metrics correctly attribute provider [AC3]
+6. No canonical route changes [AC4]
+7. Operator console shows providers, per-provider stats, multi-provider bindings [AC6]
+8. `bash scripts/validate.sh` passes with all new tests [AC7]
