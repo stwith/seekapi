@@ -43,7 +43,7 @@ bash scripts/validate.sh
 
 This runs lint, typecheck, tests, build, architecture checks, AC coverage checks, and smoke checks.
 
-AI pull request review in this repository is based on Codex's GitHub integration, not a repository `OPENAI_API_KEY` secret. The guidance workflow runs on `pull_request`, so the PR immediately reflects the branch's current review instructions. Trigger Codex in GitHub with `@codex review`, or enable Codex auto-review for the repository in GitHub/Codex settings. [AC3][AC4][AC5]
+Pull request review in this repository is based on Codex's GitHub integration, not a repository `OPENAI_API_KEY` secret. Trigger Codex in GitHub with `@codex review`, or enable Codex auto-review for the repository in GitHub/Codex settings. [AC3][AC4][AC5]
 
 ## PR Loop
 
@@ -61,7 +61,7 @@ bash scripts/open-pr.sh --automerge
 
 This helper runs `bash scripts/validate.sh`, pushes the current branch, opens or updates a PR against `main`, and applies the `task` label plus the optional `automerge` label.
 
-The repository keeps a sticky AI review guidance comment, but the actual model review is expected to come from Codex on GitHub via `@codex review` or repository-level Codex auto-review.
+The actual model review is expected to come from Codex on GitHub via `@codex review` or repository-level Codex auto-review.
 
 For the Claude repair loop, use the structured Codex review comment protocol. [AC3]
 
