@@ -1,0 +1,116 @@
+# SeekAPI Phase 3 Plan
+
+**Date:** 2026-03-21
+
+**Status:** Draft
+
+**Goal:** Prove SeekAPI as a true multi-provider API dispatcher by adding a second search provider without changing the downstream canonical API or weakening the project-scoped control model.
+
+**Context:** Phase 2 is focused on making the Brave Search path fully operational. Phase 3 starts only after that path is repository-backed, observable, and stable. The primary purpose of Phase 3 is to validate the architecture through a second provider, not to widen capability surface first.
+
+## Primary Direction
+
+Phase 3 is a horizontal expansion phase.
+
+The product question it answers is:
+
+Can SeekAPI route one stable canonical search API across multiple upstream providers while preserving project isolation, policy control, observability, and deterministic behavior?
+
+## Acceptance Criteria
+
+AC1: A second search provider can be configured and executed through the existing canonical endpoints without downstream contract changes.
+
+AC2: Provider enablement, credential resolution, routing policy, and health behavior work for both Brave and the new provider through the same service boundaries.
+
+AC3: Usage, audit, and metrics records retain provider and project dimensions across both providers.
+
+AC4: Deterministic routing and fallback can choose between Brave and the new provider according to persisted project policy.
+
+AC5: Adding the new provider does not require canonical-route-specific branching outside provider adapters, routing services, or repository-backed policy resolution.
+
+AC6: Local verification instructions show how to exercise both providers through the same downstream API shape.
+
+## Constraints
+
+- Do not add a new canonical capability in this phase unless required for provider parity.
+- Do not leak provider-specific knobs into canonical top-level fields.
+- Keep Brave as a first-class supported provider while adding the second provider.
+- Preserve `bash scripts/validate.sh` as the delivery gate.
+- Keep the execution flow deterministic and explainable.
+
+## Non-Goals
+
+- Adding three or more providers in one phase
+- Multi-provider racing
+- Cost optimization routing
+- Admin UI
+- Billing
+- Provider passthrough API
+- New non-search product surfaces
+
+## Recommended Provider Selection
+
+Choose the second provider based on how well it fits the existing canonical search model.
+
+Preferred candidates:
+
+1. Tavily
+2. Kagi
+3. SerpAPI
+
+The best choice is the provider that requires the least distortion of canonical `search.web`, `search.news`, and `search.images`.
+
+## Validation Commands
+
+Every task in this phase must continue to pass:
+
+```bash
+bash scripts/validate.sh
+```
+
+Each provider-specific task should also include targeted adapter and end-to-end tests.
+
+## Candidate Task Breakdown
+
+### Task 17: Select and model the second provider
+
+- choose the second provider
+- define credential, capability, and health assumptions
+- document any canonical mapping tension before coding
+
+### Task 18: Implement the second provider adapter
+
+- add request mapping
+- add response mapping
+- add typed provider error handling
+- add health probe behavior
+
+### Task 19: Extend repository-backed provider policy
+
+- persist project-level provider enablement for the new provider
+- persist fallback ordering across at least two providers
+- validate health-aware selection and deterministic fallback
+
+### Task 20: Extend end-to-end routing and observability
+
+- prove canonical routes can hit both providers
+- prove usage, audit, and metrics remain correct across provider choice
+- prove health and fallback semantics are still operator-visible
+
+### Task 21: Update operator workflow for multi-provider local verification
+
+- document local env setup for both providers
+- document manual verification for each provider
+- update smoke and examples if required
+
+## Backup Direction
+
+If Phase 3 is intentionally deferred, the backup direction is vertical capability expansion.
+
+That backup means:
+
+- define one new canonical capability
+- implement it on one provider first, likely Brave
+- expand other providers only after the shared contract is stable
+
+This backup path exists to widen product value without weakening the architectural rule that canonical capability design comes before provider-specific special cases.
