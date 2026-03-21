@@ -13,6 +13,18 @@ import { MVP_CAPABILITIES } from "../../../providers/core/types.js";
 import type { ApiKeyRepository } from "../../../infra/db/repositories/api-key-repository.js";
 import type { ProjectRepository, ProjectRow, ProviderBindingRow } from "../../../infra/db/repositories/project-repository.js";
 import type { CredentialRepository, CredentialMeta } from "../../../infra/db/repositories/credential-repository.js";
+import type {
+  UsageEventRepository,
+  UsageQueryFilters,
+  UsageStats,
+  TimeSeriesPoint,
+  CapabilityBreakdown,
+  KeyUsageStats,
+  PaginatedResult,
+} from "../../../infra/db/repositories/usage-event-repository.js";
+import type { UsageEvent } from "../../usage/service/usage-service.js";
+import type { AuditLogRepository, AuditQueryFilters } from "../../../infra/db/repositories/audit-log-repository.js";
+import type { AuditEntry } from "../../audit/service/audit-service.js";
 
 /** Providers allowed in the current phase (Brave-only). */
 const ALLOWED_PROVIDERS = new Set(["brave"]);
@@ -25,6 +37,10 @@ export interface AdminServiceDeps {
   projectRepository: ProjectRepository;
   credentialRepository: CredentialRepository;
   encryptionKey: string;
+  /** Usage event repository for stats queries. [Phase 3.5 AC6] */
+  usageEventRepository?: UsageEventRepository;
+  /** Audit log repository for audit queries. [Phase 3.5 AC6] */
+  auditLogRepository?: AuditLogRepository;
 }
 
 export interface CreateProjectResult {
@@ -234,6 +250,68 @@ export class AdminService {
       throw new Error("Binding configuration not supported by this repository");
     }
     await this.deps.projectRepository.upsertBinding(projectId, binding);
+  }
+
+  // --- Stats & query methods [Phase 3.5 AC6] ---
+
+  /** Aggregated dashboard stats. */
+  async getDashboardStats(filters: UsageQueryFilters): Promise<UsageStats> {
+    const repo = this.deps.usageEventRepository;
+    if (!repo?.aggregateStats) {
+      return { totalRequests: 0, successCount: 0, failureCount: 0, avgLatencyMs: 0 };
+    }
+    return repo.aggregateStats(filters);
+  }
+
+  /** Time series for charts. */
+  async getTimeSeries(filters: UsageQueryFilters, granularity: "hour" | "day"): Promise<TimeSeriesPoint[]> {
+    const repo = this.deps.usageEventRepository;
+    if (!repo?.timeSeries) return [];
+    return repo.timeSeries(filters, granularity);
+  }
+
+  /** Capability breakdown. */
+  async getCapabilityBreakdown(filters: UsageQueryFilters): Promise<CapabilityBreakdown[]> {
+    const repo = this.deps.usageEventRepository;
+    if (!repo?.topCapabilities) return [];
+    return repo.topCapabilities(filters);
+  }
+
+  /** Query usage events with filtering and pagination. */
+  async queryUsageEvents(
+    filters: UsageQueryFilters,
+    page: number,
+    pageSize: number,
+  ): Promise<PaginatedResult<UsageEvent>> {
+    const repo = this.deps.usageEventRepository;
+    if (!repo?.query) {
+      return { items: [], total: 0, page, pageSize };
+    }
+    return repo.query(filters, page, pageSize);
+  }
+
+  /** Per-key usage stats for a project. */
+  async getPerKeyStats(projectId: string): Promise<KeyUsageStats[]> {
+    const found = await this.deps.projectRepository.findById(projectId);
+    if (!found) {
+      throw new AdminError("Project not found", "PROJECT_NOT_FOUND");
+    }
+    const repo = this.deps.usageEventRepository;
+    if (!repo?.perKeyStats) return [];
+    return repo.perKeyStats(projectId);
+  }
+
+  /** Query audit log entries with filtering and pagination. */
+  async queryAuditLogs(
+    filters: AuditQueryFilters,
+    page: number,
+    pageSize: number,
+  ): Promise<PaginatedResult<AuditEntry>> {
+    const repo = this.deps.auditLogRepository;
+    if (!repo?.query) {
+      return { items: [], total: 0, page, pageSize };
+    }
+    return repo.query(filters, page, pageSize);
   }
 }
 

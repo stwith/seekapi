@@ -140,6 +140,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       projectRepository,
       credentialRepository,
       encryptionKey,
+      usageEventRepository,
+      auditLogRepository,
     });
     await registerAdminRoutes(app, {
       adminService,
