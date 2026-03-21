@@ -32,12 +32,12 @@ describe("BraveAdapter", () => {
     await expect(adapter.validateCredential(null)).rejects.toThrow("non-empty string");
   });
 
-  it("healthCheck returns placeholder status without calling upstream", async () => {
+  it("healthCheck returns unavailable without credential", async () => {
     const adapter = new BraveAdapter();
     const result = await adapter.healthCheck({});
 
     expect(result.provider).toBe("brave");
-    expect(result.status).toBe("healthy");
+    expect(result.status).toBe("unavailable");
     expect(result.checkedAt).toBeInstanceOf(Date);
   });
 });

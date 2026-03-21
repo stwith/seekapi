@@ -9,7 +9,10 @@ import { CredentialService } from "../modules/credentials/service/credential-ser
 import { UsageService, type UsageEventSink } from "../modules/usage/service/usage-service.js";
 import { AuditService, type AuditLogSink } from "../modules/audit/service/audit-service.js";
 import { RateLimitService } from "../modules/auth/service/rate-limit-service.js";
-import { createInMemoryRedisClient } from "../infra/redis/client.js";
+import {
+  createRedisClient,
+  createInMemoryRedisClient,
+} from "../infra/redis/client.js";
 
 export interface AppOptions {
   logger?: boolean | object;
@@ -62,8 +65,11 @@ export async function buildApp(
   };
   const auditService = new AuditService(auditLogSink);
 
-  // Rate limiting — in-memory Redis stub for dev/test, real Redis in production
-  const redis = createInMemoryRedisClient();
+  // Rate limiting — real Redis when REDIS_URL is set, in-memory stub otherwise
+  const redisUrl = process.env["REDIS_URL"];
+  const redis = redisUrl
+    ? createRedisClient(redisUrl)
+    : createInMemoryRedisClient();
   const rateLimitService = new RateLimitService(redis);
 
   // Downstream API key authentication with rate limiting [AC2]

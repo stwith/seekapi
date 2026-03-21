@@ -56,6 +56,8 @@ describe("RateLimitService", () => {
 
     const result = await svc.check("proj_001");
     expect(result.limit).toBe(100);
-    expect(result.resetSeconds).toBe(60);
+    // resetSeconds is the remaining time in the current window (1..windowSeconds)
+    expect(result.resetSeconds).toBeGreaterThanOrEqual(1);
+    expect(result.resetSeconds).toBeLessThanOrEqual(60);
   });
 });

@@ -42,7 +42,8 @@ describe("Health routes", () => {
     const body = res.json();
     expect(body.providers).toHaveLength(1);
     expect(body.providers[0].provider).toBe("brave");
-    expect(body.providers[0].status).toBe("healthy");
+    // Without a credential, Brave reports unavailable (no placeholder "healthy")
+    expect(body.providers[0].status).toBe("unavailable");
     expect(body.providers[0].checked_at).toBeDefined();
   });
 

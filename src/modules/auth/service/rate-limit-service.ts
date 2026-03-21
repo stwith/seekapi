@@ -39,9 +39,8 @@ export class RateLimitService {
   }
 
   async check(projectId: string): Promise<RateLimitResult> {
-    const windowKey = Math.floor(
-      Date.now() / 1000 / this.config.windowSeconds,
-    );
+    const nowSeconds = Date.now() / 1000;
+    const windowKey = Math.floor(nowSeconds / this.config.windowSeconds);
     const key = `ratelimit:${projectId}:${windowKey}`;
 
     const count = await this.redis.incr(key);
@@ -54,6 +53,10 @@ export class RateLimitService {
     const allowed = count <= this.config.maxRequests;
     const remaining = Math.max(0, this.config.maxRequests - count);
 
+    // Compute remaining seconds until the current window resets
+    const windowEnd = (windowKey + 1) * this.config.windowSeconds;
+    const resetSeconds = Math.max(1, Math.ceil(windowEnd - nowSeconds));
+
     if (!allowed) {
       rateLimitCounter.add(1, { project_id: projectId });
     }
@@ -63,7 +66,7 @@ export class RateLimitService {
       current: count,
       limit: this.config.maxRequests,
       remaining,
-      resetSeconds: this.config.windowSeconds,
+      resetSeconds,
     };
   }
 }
