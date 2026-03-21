@@ -1,14 +1,20 @@
 import { buildApp } from "./build-app.js";
 import { hashKey } from "../modules/auth/service/auth-service.js";
 import { encryptSecret } from "../modules/credentials/service/credential-service.js";
+import { createDbClient } from "../infra/db/client.js";
 import { InMemoryApiKeyRepository } from "../infra/db/repositories/api-key-repository.js";
 import { InMemoryProjectRepository } from "../infra/db/repositories/project-repository.js";
 import { InMemoryCredentialRepository } from "../infra/db/repositories/credential-repository.js";
+import { InMemoryUsageEventRepository, DrizzleUsageEventRepository } from "../infra/db/repositories/usage-event-repository.js";
+import { InMemoryAuditLogRepository, DrizzleAuditLogRepository } from "../infra/db/repositories/audit-log-repository.js";
+import { InMemoryHealthSnapshotRepository, DrizzleHealthSnapshotRepository } from "../infra/db/repositories/health-snapshot-repository.js";
 
 /**
- * Bootstrap in-memory repositories from environment variables.
- * This is the local dev / smoke entrypoint.
- * Production deployments should wire Drizzle-backed repositories.
+ * Bootstrap repositories from environment variables.
+ *
+ * When DATABASE_URL is set, usage events, audit logs, and health
+ * snapshots are persisted to PostgreSQL via Drizzle. [AC3]
+ * Otherwise falls back to in-memory for local dev / smoke tests.
  */
 function bootstrapFromEnv() {
   const encryptionKey = process.env["ENCRYPTION_KEY"];
@@ -54,7 +60,32 @@ function bootstrapFromEnv() {
     });
   }
 
-  return { apiKeyRepository, projectRepository, credentialRepository, encryptionKey };
+  // Observability repositories — DB-backed when DATABASE_URL is set [AC3]
+  const databaseUrl = process.env["DATABASE_URL"];
+  let usageEventRepository;
+  let auditLogRepository;
+  let healthSnapshotRepository;
+
+  if (databaseUrl) {
+    const { db } = createDbClient(databaseUrl);
+    usageEventRepository = new DrizzleUsageEventRepository(db);
+    auditLogRepository = new DrizzleAuditLogRepository(db);
+    healthSnapshotRepository = new DrizzleHealthSnapshotRepository(db);
+  } else {
+    usageEventRepository = new InMemoryUsageEventRepository();
+    auditLogRepository = new InMemoryAuditLogRepository();
+    healthSnapshotRepository = new InMemoryHealthSnapshotRepository();
+  }
+
+  return {
+    apiKeyRepository,
+    projectRepository,
+    credentialRepository,
+    usageEventRepository,
+    auditLogRepository,
+    healthSnapshotRepository,
+    encryptionKey,
+  };
 }
 
 async function main(): Promise<void> {

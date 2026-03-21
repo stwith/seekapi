@@ -12,6 +12,9 @@ import { encryptSecret } from "../../src/modules/credentials/service/credential-
 import { InMemoryApiKeyRepository } from "../../src/infra/db/repositories/api-key-repository.js";
 import { InMemoryProjectRepository } from "../../src/infra/db/repositories/project-repository.js";
 import { InMemoryCredentialRepository } from "../../src/infra/db/repositories/credential-repository.js";
+import { InMemoryUsageEventRepository } from "../../src/infra/db/repositories/usage-event-repository.js";
+import { InMemoryAuditLogRepository } from "../../src/infra/db/repositories/audit-log-repository.js";
+import { InMemoryHealthSnapshotRepository } from "../../src/infra/db/repositories/health-snapshot-repository.js";
 
 /** Well-known test API key used across test suites. */
 export const TEST_API_KEY = "sk_test_seekapi_demo_key_001";
@@ -58,10 +61,17 @@ export function seedTestRepositories(opts?: {
     status: "active",
   });
 
+  const usageEventRepository = new InMemoryUsageEventRepository();
+  const auditLogRepository = new InMemoryAuditLogRepository();
+  const healthSnapshotRepository = new InMemoryHealthSnapshotRepository();
+
   return {
     apiKeyRepository,
     projectRepository,
     credentialRepository,
+    usageEventRepository,
+    auditLogRepository,
+    healthSnapshotRepository,
     encryptionKey,
   };
 }

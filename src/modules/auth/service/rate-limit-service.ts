@@ -43,11 +43,26 @@ export class RateLimitService {
     const windowKey = Math.floor(nowSeconds / this.config.windowSeconds);
     const key = `ratelimit:${projectId}:${windowKey}`;
 
-    const count = await this.redis.incr(key);
+    let count: number;
+    try {
+      count = await this.redis.incr(key);
 
-    // Set TTL on first increment so the key auto-expires
-    if (count === 1) {
-      await this.redis.expire(key, this.config.windowSeconds);
+      // Set TTL on first increment so the key auto-expires
+      if (count === 1) {
+        await this.redis.expire(key, this.config.windowSeconds);
+      }
+    } catch {
+      // Redis unavailable — degrade gracefully by allowing the request. [AC4]
+      // Availability is more important than strict rate enforcement.
+      const windowEnd = (windowKey + 1) * this.config.windowSeconds;
+      const resetSeconds = Math.max(1, Math.ceil(windowEnd - nowSeconds));
+      return {
+        allowed: true,
+        current: 0,
+        limit: this.config.maxRequests,
+        remaining: this.config.maxRequests,
+        resetSeconds,
+      };
     }
 
     const allowed = count <= this.config.maxRequests;
