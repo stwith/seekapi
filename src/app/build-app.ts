@@ -36,11 +36,21 @@ export async function buildApp(
   const registry = new ProviderRegistry();
   registry.register(new BraveAdapter());
 
-  // Health endpoints — available before auth
-  await registerHealthRoutes(app, { registry });
-
   // Credential resolution [AC4]
   const credentialService = new CredentialService();
+
+  // Health endpoints — available before auth
+  await registerHealthRoutes(app, {
+    registry,
+    resolveHealthCredential: async (provider) => {
+      try {
+        // Use demo project credentials for health probes
+        return await credentialService.resolve("proj_demo_001", provider);
+      } catch {
+        return undefined;
+      }
+    },
+  });
 
   // Search service with real provider wiring [AC4]
   const searchService = new SearchService({

@@ -7,6 +7,8 @@ import type { ProviderRegistry } from "../../../providers/core/registry.js";
 
 export interface HealthRouteDeps {
   registry?: ProviderRegistry;
+  /** Resolve a credential for health-checking a provider. */
+  resolveHealthCredential?: (provider: string) => Promise<string | undefined>;
 }
 
 /**
@@ -37,7 +39,10 @@ export async function registerHealthRoutes(
     const results = await Promise.all(
       adapters.map(async (adapter) => {
         try {
-          const health = await adapter.healthCheck({});
+          const credential = deps.resolveHealthCredential
+            ? await deps.resolveHealthCredential(adapter.id)
+            : undefined;
+          const health = await adapter.healthCheck({ credential });
           return {
             provider: adapter.id,
             status: health.status,
