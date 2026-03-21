@@ -5,6 +5,10 @@ import { Overview } from "../routes/overview/Overview.js";
 import { ProjectList } from "../routes/projects/ProjectList.js";
 import { ProjectDetailPage } from "../routes/projects/ProjectDetail.js";
 import { FlowRunner } from "../routes/flow-runner/FlowRunner.js";
+import { Dashboard } from "../routes/dashboard/Dashboard.js";
+import { KeysPage } from "../routes/keys/KeysPage.js";
+import { UsagePage } from "../routes/usage/UsagePage.js";
+import { SubscriptionsPage } from "../routes/subscriptions/SubscriptionsPage.js";
 
 export function App() {
   const [adminKey, setAdminKey] = useState(
@@ -29,8 +33,12 @@ export function App() {
       <Shell adminKey={adminKey} onLogout={() => handleSetAdminKey("")}>
         <Routes>
           <Route path="/" element={<Overview adminKey={adminKey} />} />
+          <Route path="/dashboard" element={<Dashboard adminKey={adminKey} />} />
           <Route path="/projects" element={<ProjectList adminKey={adminKey} />} />
           <Route path="/projects/:projectId" element={<ProjectDetailPage adminKey={adminKey} />} />
+          <Route path="/keys" element={<KeysPage adminKey={adminKey} />} />
+          <Route path="/usage" element={<UsagePage adminKey={adminKey} />} />
+          <Route path="/subscriptions" element={<SubscriptionsPage adminKey={adminKey} />} />
           <Route path="/flow-runner" element={<FlowRunner adminKey={adminKey} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

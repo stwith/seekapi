@@ -88,6 +88,77 @@ export interface CreateKeyResult {
   rawKey: string;
 }
 
+// --- Stats & query types [Task 34/38] ---
+
+export interface DashboardStats {
+  totalRequests: number;
+  successCount: number;
+  failureCount: number;
+  avgLatencyMs: number;
+}
+
+export interface TimeSeriesPoint {
+  bucket: string;
+  count: number;
+  successCount: number;
+  failureCount: number;
+}
+
+export interface CapabilityBreakdown {
+  capability: string;
+  count: number;
+}
+
+export interface UsageEvent {
+  requestId: string;
+  projectId: string;
+  apiKeyId: string;
+  provider: string;
+  capability: string;
+  statusCode: number;
+  success: boolean;
+  latencyMs: number;
+  resultCount: number;
+  fallbackCount: number;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface KeyUsageStats {
+  apiKeyId: string;
+  requestCount: number;
+  successCount: number;
+  failureCount: number;
+  avgLatencyMs: number;
+}
+
+export interface AuditEntry {
+  projectId: string;
+  actorType: string;
+  actorId: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  details?: Record<string, unknown>;
+}
+
+export interface ProjectQuota {
+  id: string;
+  projectId: string;
+  dailyRequestLimit: number | null;
+  monthlyRequestLimit: number | null;
+  maxKeys: number;
+  rateLimitRpm: number;
+  status: string;
+  currentDailyUsage: number;
+  currentMonthlyUsage: number;
+}
+
 export const api = {
   // Read endpoints (Task 27)
   listProjects(adminKey: string) {
@@ -151,6 +222,53 @@ export const api = {
       adminKey,
       body: JSON.stringify(binding),
     });
+  },
+
+  // Stats endpoints [Task 34]
+  getDashboardStats(adminKey: string, params?: Record<string, string>) {
+    const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+    return request<DashboardStats>(`/v1/admin/stats/dashboard${qs}`, { adminKey });
+  },
+
+  getTimeSeries(adminKey: string, params?: Record<string, string>) {
+    const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+    return request<{ series: TimeSeriesPoint[] }>(`/v1/admin/stats/timeseries${qs}`, { adminKey });
+  },
+
+  getCapabilityBreakdown(adminKey: string, params?: Record<string, string>) {
+    const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+    return request<{ capabilities: CapabilityBreakdown[] }>(`/v1/admin/stats/capabilities${qs}`, { adminKey });
+  },
+
+  queryUsageEvents(adminKey: string, params?: Record<string, string>) {
+    const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+    return request<PaginatedResult<UsageEvent>>(`/v1/admin/usage${qs}`, { adminKey });
+  },
+
+  getPerKeyStats(adminKey: string, projectId: string) {
+    return request<{ keys: KeyUsageStats[] }>(`/v1/admin/projects/${projectId}/keys/stats`, { adminKey });
+  },
+
+  queryAuditLogs(adminKey: string, params?: Record<string, string>) {
+    const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+    return request<PaginatedResult<AuditEntry>>(`/v1/admin/audit${qs}`, { adminKey });
+  },
+
+  // Quota endpoints [Task 38]
+  getProjectQuota(adminKey: string, projectId: string) {
+    return request<ProjectQuota>(`/v1/admin/projects/${projectId}/quota`, { adminKey });
+  },
+
+  updateProjectQuota(adminKey: string, projectId: string, updates: Record<string, unknown>) {
+    return request<ProjectQuota>(`/v1/admin/projects/${projectId}/quota`, {
+      method: "PUT",
+      adminKey,
+      body: JSON.stringify(updates),
+    });
+  },
+
+  listQuotas(adminKey: string) {
+    return request<{ quotas: ProjectQuota[] }>("/v1/admin/quotas", { adminKey });
   },
 
   // Canonical search (for flow runner)

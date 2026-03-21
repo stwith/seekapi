@@ -39,7 +39,11 @@ describe("App shell [AC1]", () => {
     const nav = screen.getByTestId("nav-sidebar");
     expect(nav).toBeInTheDocument();
     expect(nav.textContent).toContain("Overview");
+    expect(nav.textContent).toContain("Dashboard");
     expect(nav.textContent).toContain("Projects");
+    expect(nav.textContent).toContain("API Keys");
+    expect(nav.textContent).toContain("Usage");
+    expect(nav.textContent).toContain("Subscriptions");
     expect(nav.textContent).toContain("Flow Runner");
   });
 });

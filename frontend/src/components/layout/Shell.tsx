@@ -3,7 +3,11 @@ import { NavLink } from "react-router-dom";
 
 const NAV_ITEMS = [
   { to: "/", label: "Overview" },
+  { to: "/dashboard", label: "Dashboard" },
   { to: "/projects", label: "Projects" },
+  { to: "/keys", label: "API Keys" },
+  { to: "/usage", label: "Usage" },
+  { to: "/subscriptions", label: "Subscriptions" },
   { to: "/flow-runner", label: "Flow Runner" },
 ];
 
