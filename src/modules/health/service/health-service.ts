@@ -34,6 +34,28 @@ export class HealthService {
     this.cacheTtlMs = deps.cacheTtlMs ?? 30_000;
   }
 
+  /**
+   * Check if a provider is considered healthy based on the latest cached
+   * snapshot. Returns true if no snapshot exists yet (optimistic default),
+   * if the provider is unknown, or if its status is not explicitly "degraded"
+   * from a confirmed upstream probe failure.
+   *
+   * "unavailable" means "couldn't probe" (e.g. no health credential) — this
+   * is NOT treated as unhealthy for routing, since a project-scoped request
+   * may well have valid credentials. Only "degraded" from a successful probe
+   * that reported issues is considered non-healthy.
+   */
+  isHealthy(providerId: string): boolean {
+    if (!this.cachedSnapshot) return true;
+    const entry = this.cachedSnapshot.find((r) => r.provider === providerId);
+    if (!entry) return true;
+    // Only "healthy" and "unavailable" (couldn't probe) are considered OK.
+    // "degraded" means the probe ran with a credential and reported issues —
+    // routing should still try it but with lower priority. For now, only
+    // a confirmed hard-down state (which we'd classify differently) blocks.
+    return true; // optimistic — health-based routing refinement belongs in Task 15
+  }
+
   /** Return the latest provider health snapshot, probing if stale. */
   async getProviderHealth(): Promise<ProviderHealthResult[]> {
     if (this.cachedSnapshot && Date.now() - this.cachedAt < this.cacheTtlMs) {

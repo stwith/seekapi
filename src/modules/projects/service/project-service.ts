@@ -1,4 +1,7 @@
-import type { ProjectRepository } from "../../../infra/db/repositories/project-repository.js";
+import type {
+  ProjectRepository,
+  ProviderBindingRow,
+} from "../../../infra/db/repositories/project-repository.js";
 
 /**
  * Project context resolved from a valid API key. [AC1][AC2]
@@ -7,7 +10,8 @@ export interface ProjectContext {
   projectId: string;
   projectName: string;
   defaultProvider: string;
-  allowedProviders: string[];
+  /** Raw provider bindings — routing uses these to derive per-capability policy. */
+  bindings: ProviderBindingRow[];
   apiKeyId: string;
 }
 
@@ -24,8 +28,8 @@ export class ProjectService {
 
   /**
    * Resolve project context by id. [AC2]
-   * Fetches the project and its provider bindings from the repository,
-   * derives allowed providers and default provider from persisted state.
+   * Fetches the project and its provider bindings from the repository.
+   * Raw bindings are preserved so downstream routing can filter by capability.
    */
   async resolve(
     projectId: string,
@@ -34,16 +38,11 @@ export class ProjectService {
     const result = await this.deps.projectRepository.findById(projectId);
     if (!result) return undefined;
 
-    const allowedProviders = result.bindings
-      .filter((b) => b.enabled)
-      .map((b) => b.provider)
-      .filter((v, i, a) => a.indexOf(v) === i);
-
     return {
       projectId: result.project.id,
       projectName: result.project.name,
       defaultProvider: result.defaultProvider,
-      allowedProviders,
+      bindings: result.bindings,
       apiKeyId: apiKeyId ?? "unknown",
     };
   }
