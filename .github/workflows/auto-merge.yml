@@ -13,7 +13,7 @@ on:
     types: [completed]
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: write
@@ -39,8 +39,8 @@ jobs:
         with:
           script: |
             const MERGEABLE_WAIT_STATES = new Set(["UNKNOWN", "UNSTABLE", "BLOCKED"]);
-            const MERGE_STATE_RETRIES = 6;
-            const MERGE_STATE_DELAY_MS = 5000;
+            const MERGE_STATE_RETRIES = 12;
+            const MERGE_STATE_DELAY_MS = 10000;
 
             async function getPullRequests() {
               if (context.eventName === "pull_request_target") {

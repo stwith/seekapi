@@ -27,7 +27,7 @@ It covers system startup, data preparation, smoke checks, and common failure poi
 
 - `.github/workflows/ci.yml` mirrors the local delivery gate on pushes and pull requests.
 - `.github/workflows/pr-review.yml` posts or updates a sticky pull request comment with changed files and current check status.
-- `.github/workflows/auto-merge.yml` can squash-merge PRs labeled `automerge` once `validate` and `comment` are green, the latest structured Codex review is `READY`, and review threads are resolved.
+- `.github/workflows/auto-merge.yml` can squash-merge PRs labeled `automerge` once `validate` and `comment` are green, the latest structured Codex review is `READY`, and review threads are resolved. It also retries `UNSTABLE` merge states and sweeps open `automerge` PRs every 5 minutes so transient GitHub merge-state lag does not strand ready PRs.
 - `bash scripts/open-pr.sh` standardizes the local branch -> validate -> push -> PR flow and can add `automerge` on request.
 - `bash scripts/claude-fix-pr.sh <pr-number>` renders the latest structured Codex review comment into a repair prompt for Claude.
 
