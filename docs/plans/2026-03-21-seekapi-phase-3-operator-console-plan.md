@@ -4,9 +4,9 @@
 
 **Goal:** Build a minimal operator-facing frontend that manages and verifies the full Phase 2.5 Brave-only workflow through the existing admin and canonical APIs.
 
-**Architecture:** Add a dedicated `frontend/` Vite application that talks only to HTTP boundaries. Extend the admin module with read-oriented operator endpoints where necessary, but preserve the existing transport -> service -> repository layering and keep canonical search execution unchanged.
+**Architecture:** Add a dedicated `frontend/` Next.js application that talks only to HTTP boundaries. Extend the admin module with read-oriented operator endpoints where necessary, but preserve the existing transport -> service -> repository layering and keep canonical search execution unchanged. The Next.js app is an operator console client, not a replacement backend.
 
-**Tech Stack:** TypeScript, Node.js, Fastify, React, Vite, Vitest, pnpm
+**Tech Stack:** TypeScript, Node.js, Fastify, React, Next.js, Vitest, pnpm
 
 ---
 
@@ -55,6 +55,7 @@ Phase-specific validation should also include:
 
 ```bash
 pnpm --dir frontend test
+pnpm --dir frontend lint
 pnpm --dir frontend build
 ```
 
@@ -65,10 +66,11 @@ Manual validation should prove the full Phase 2.5 flow from the UI against a run
 **Files:**
 - Create: `frontend/package.json`
 - Create: `frontend/tsconfig.json`
-- Create: `frontend/vite.config.ts`
-- Create: `frontend/index.html`
-- Create: `frontend/src/main.tsx`
-- Create: `frontend/src/app/*`
+- Create: `frontend/next.config.*`
+- Create: `frontend/app/layout.tsx`
+- Create: `frontend/app/page.tsx`
+- Create: `frontend/app/*`
+- Create: `frontend/src/*`
 - Modify: `package.json`
 - Modify: `README.md`
 
@@ -83,11 +85,11 @@ Expected: FAIL because the frontend app and test setup do not exist yet.
 
 **Step 3: Write minimal frontend bootstrap**
 
-Create the `frontend/` Vite app with:
+Create the `frontend/` Next.js app with:
 
-- React + TypeScript entrypoint
-- app shell
-- route container
+- App Router entrypoint
+- operator app shell
+- route groups or top-level app routes
 - environment contract for API base URL
 
 **Step 4: Run test to verify it passes**
@@ -297,6 +299,7 @@ git commit -m "feat: add phase 2.5 operator flow runner"
 **Step 1: Write the failing validation hook**
 
 Update validation expectations so frontend typecheck, test, and build are required.
+Update validation expectations so frontend lint, typecheck, test, and build are required.
 
 **Step 2: Run validation to verify it fails**
 

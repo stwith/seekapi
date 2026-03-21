@@ -55,9 +55,9 @@ Use one small frontend app, mounted as an operator console, with a narrow page s
 
 Recommended stack:
 
-- Vite
+- Next.js
 - React + TypeScript
-- simple router
+- App Router with client-first operator pages
 - lightweight data fetching
 - no design-system overbuild
 
@@ -229,7 +229,7 @@ Avoid copying `sub2api` features that do not match SeekAPI's product boundary:
 Recommended default:
 
 - create a dedicated `frontend/` directory
-- keep it as a separate Vite application inside the same repo
+- keep it as a separate Next.js application inside the same repo
 - build it independently from the API server
 
 Why:
@@ -238,7 +238,8 @@ Why:
 - preserves backend harness clarity
 - makes it easy to serve statically later or host separately
 
-Do not force SSR, Next.js, or a monorepo toolchain in this phase.
+Do not turn this into a backend replacement or a full-stack framework migration.
+Use Next.js mainly as the frontend framework and keep the real control-plane logic in the existing Fastify server.
 
 ## Architecture Boundaries
 

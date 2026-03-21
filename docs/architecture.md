@@ -11,7 +11,7 @@ Primary stack:
 - Fastify
 - PostgreSQL
 - Redis
-- React + Vite for the operator console when Phase 3 begins
+- React + Next.js for the operator console when Phase 3 begins
 
 Package manager: **pnpm** (not npm or yarn). All scripts, CI, and documentation use `pnpm`.
 
