@@ -8,7 +8,7 @@ SeekAPI exposes canonical search endpoints (`/v1/search/web`, `/v1/search/news`,
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Set the required encryption key
 export ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
@@ -17,7 +17,7 @@ export ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000
 export BRAVE_API_KEY=BSA...your-key...
 
 # Start in development mode
-npm run dev
+pnpm run dev
 ```
 
 Verify the server is running:
@@ -42,14 +42,14 @@ For the full walkthrough — environment setup, bootstrap flow, hitting every en
 
 | Command              | Description                        |
 | -------------------- | ---------------------------------- |
-| `npm run dev`        | Start with hot reload (auto-loads `.env`) |
-| `npm run build`      | Compile TypeScript                 |
-| `npm start`          | Run compiled output                |
-| `npm test`           | Run tests (vitest)                 |
-| `npm run lint`       | Lint source                        |
-| `npm run typecheck`  | Type-check without emitting        |
-| `npm run db:generate`| Generate Drizzle migrations        |
-| `npm run db:migrate` | Apply Drizzle migrations            |
+| `pnpm run dev`        | Start with hot reload (auto-loads `.env`) |
+| `pnpm run build`      | Compile TypeScript                 |
+| `pnpm start`          | Run compiled output                |
+| `pnpm test`           | Run tests (vitest)                 |
+| `pnpm run lint`       | Lint source                        |
+| `pnpm run typecheck`  | Type-check without emitting        |
+| `pnpm run db:generate`| Generate Drizzle migrations        |
+| `pnpm run db:migrate` | Apply Drizzle migrations            |
 
 ## Environment Variables
 
