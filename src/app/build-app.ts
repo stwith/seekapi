@@ -24,6 +24,7 @@ import type { CredentialRepository } from "../infra/db/repositories/credential-r
 import type { UsageEventRepository } from "../infra/db/repositories/usage-event-repository.js";
 import type { AuditLogRepository } from "../infra/db/repositories/audit-log-repository.js";
 import type { HealthSnapshotRepository } from "../infra/db/repositories/health-snapshot-repository.js";
+import type { QuotaRepository } from "../infra/db/repositories/quota-repository.js";
 
 export interface AppOptions {
   logger?: boolean | object;
@@ -39,6 +40,8 @@ export interface AppOptions {
   auditLogRepository: AuditLogRepository;
   /** Repository for persisting health snapshots. Required. [AC3] */
   healthSnapshotRepository: HealthSnapshotRepository;
+  /** Repository for project quota configuration. [Task 38] */
+  quotaRepository?: QuotaRepository;
   /** Hex-encoded 32-byte key for credential encryption. Required. */
   encryptionKey: string;
   /**
@@ -142,6 +145,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       encryptionKey,
       usageEventRepository,
       auditLogRepository,
+      quotaRepository: opts.quotaRepository,
     });
     await registerAdminRoutes(app, {
       adminService,

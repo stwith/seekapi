@@ -25,6 +25,7 @@ import type {
 import type { UsageEvent } from "../../usage/service/usage-service.js";
 import type { AuditLogRepository, AuditQueryFilters } from "../../../infra/db/repositories/audit-log-repository.js";
 import type { AuditEntry } from "../../audit/service/audit-service.js";
+import type { QuotaRepository, ProjectQuota } from "../../../infra/db/repositories/quota-repository.js";
 
 /** Providers allowed in the current phase (Brave-only). */
 const ALLOWED_PROVIDERS = new Set(["brave"]);
@@ -41,6 +42,8 @@ export interface AdminServiceDeps {
   usageEventRepository?: UsageEventRepository;
   /** Audit log repository for audit queries. [Phase 3.5 AC6] */
   auditLogRepository?: AuditLogRepository;
+  /** Quota repository for quota management. [Task 38] */
+  quotaRepository?: QuotaRepository;
 }
 
 export interface CreateProjectResult {
@@ -312,6 +315,96 @@ export class AdminService {
       return { items: [], total: 0, page, pageSize };
     }
     return repo.query(filters, page, pageSize);
+  }
+
+  // --- Quota methods [Task 38] ---
+
+  private defaultQuota(projectId: string): ProjectQuota {
+    return {
+      id: "",
+      projectId,
+      dailyRequestLimit: null,
+      monthlyRequestLimit: null,
+      maxKeys: 10,
+      rateLimitRpm: 60,
+      status: "active",
+    };
+  }
+
+  private async computeUsageCounts(projectId: string): Promise<{ daily: number; monthly: number }> {
+    const usageRepo = this.deps.usageEventRepository;
+    if (!usageRepo?.aggregateStats) return { daily: 0, monthly: 0 };
+
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [dailyStats, monthlyStats] = await Promise.all([
+      usageRepo.aggregateStats({ projectId, from: startOfDay.toISOString() }),
+      usageRepo.aggregateStats({ projectId, from: startOfMonth.toISOString() }),
+    ]);
+    return { daily: dailyStats.totalRequests, monthly: monthlyStats.totalRequests };
+  }
+
+  /** Get quota config + current usage for a project. */
+  async getProjectQuota(projectId: string): Promise<ProjectQuota & { currentDailyUsage: number; currentMonthlyUsage: number }> {
+    const found = await this.deps.projectRepository.findById(projectId);
+    if (!found) {
+      throw new AdminError("Project not found", "PROJECT_NOT_FOUND");
+    }
+
+    const quotaRepo = this.deps.quotaRepository;
+    const quota = (quotaRepo ? await quotaRepo.findByProjectId(projectId) : undefined)
+      ?? this.defaultQuota(projectId);
+
+    const usage = await this.computeUsageCounts(projectId);
+    return { ...quota, currentDailyUsage: usage.daily, currentMonthlyUsage: usage.monthly };
+  }
+
+  /** Create or update quota for a project. */
+  async upsertProjectQuota(
+    projectId: string,
+    updates: Partial<Pick<ProjectQuota, "dailyRequestLimit" | "monthlyRequestLimit" | "maxKeys" | "rateLimitRpm" | "status">>,
+  ): Promise<ProjectQuota> {
+    const found = await this.deps.projectRepository.findById(projectId);
+    if (!found) {
+      throw new AdminError("Project not found", "PROJECT_NOT_FOUND");
+    }
+
+    const quotaRepo = this.deps.quotaRepository;
+    if (!quotaRepo) {
+      throw new Error("Quota repository not available");
+    }
+
+    const existing = await quotaRepo.findByProjectId(projectId);
+    const base = existing ?? this.defaultQuota(projectId);
+
+    const merged: ProjectQuota = {
+      id: base.id || `quota_${projectId}`,
+      projectId,
+      dailyRequestLimit: updates.dailyRequestLimit !== undefined ? updates.dailyRequestLimit : base.dailyRequestLimit,
+      monthlyRequestLimit: updates.monthlyRequestLimit !== undefined ? updates.monthlyRequestLimit : base.monthlyRequestLimit,
+      maxKeys: updates.maxKeys ?? base.maxKeys,
+      rateLimitRpm: updates.rateLimitRpm ?? base.rateLimitRpm,
+      status: updates.status ?? base.status,
+    };
+
+    await quotaRepo.upsert(merged);
+    return merged;
+  }
+
+  /** List all project quotas with current usage. */
+  async listAllQuotas(): Promise<(ProjectQuota & { currentDailyUsage: number; currentMonthlyUsage: number })[]> {
+    const quotaRepo = this.deps.quotaRepository;
+    if (!quotaRepo) return [];
+    const quotas = await quotaRepo.listAll();
+    return Promise.all(
+      quotas.map(async (q) => {
+        const usage = await this.computeUsageCounts(q.projectId);
+        return { ...q, currentDailyUsage: usage.daily, currentMonthlyUsage: usage.monthly };
+      }),
+    );
   }
 }
 

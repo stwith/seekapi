@@ -315,6 +315,63 @@ export async function registerAdminRoutes(
     },
   );
 
+  // --- Get project quota [Task 38] ---
+  app.get(
+    "/v1/admin/projects/:projectId/quota",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      try {
+        const quota = await adminService.getProjectQuota(projectId);
+        return reply.send(quota);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // --- Update project quota [Task 38] ---
+  app.put(
+    "/v1/admin/projects/:projectId/quota",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      const body = req.body as Record<string, unknown> | undefined;
+      try {
+        const quota = await adminService.upsertProjectQuota(projectId, {
+          dailyRequestLimit: body?.dailyRequestLimit !== undefined
+            ? (body.dailyRequestLimit as number | null)
+            : undefined,
+          monthlyRequestLimit: body?.monthlyRequestLimit !== undefined
+            ? (body.monthlyRequestLimit as number | null)
+            : undefined,
+          maxKeys: body?.maxKeys != null ? (body.maxKeys as number) : undefined,
+          rateLimitRpm: body?.rateLimitRpm != null ? (body.rateLimitRpm as number) : undefined,
+          status: body?.status != null ? (body.status as string) : undefined,
+        });
+        return reply.send(quota);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // --- List all quotas [Task 38] ---
+  app.get(
+    "/v1/admin/quotas",
+    { preHandler: checkAdminAuth },
+    async (_req: FastifyRequest, reply: FastifyReply) => {
+      const quotas = await adminService.listAllQuotas();
+      return reply.send({ quotas });
+    },
+  );
+
   // --- Configure binding ---
   app.post(
     "/v1/admin/projects/:projectId/bindings",
