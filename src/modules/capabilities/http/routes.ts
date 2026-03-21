@@ -1,8 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import type { Capability } from "../../../providers/core/types.js";
+import { ProviderError } from "../../../providers/core/errors.js";
 import { searchRequestSchema } from "./schemas.js";
 import { SearchService } from "../service/search-service.js";
 import type { UsageService } from "../../usage/service/usage-service.js";
+import type { AuditService } from "../../audit/service/audit-service.js";
 import { generateRequestId } from "../../../lib/request-id.js";
 
 const ROUTE_CAPABILITY_MAP: Record<string, Capability> = {
@@ -14,6 +16,7 @@ const ROUTE_CAPABILITY_MAP: Record<string, Capability> = {
 export interface CapabilityRouteDeps {
   searchService: SearchService;
   usageService?: UsageService;
+  auditService?: AuditService;
 }
 
 /**
@@ -26,9 +29,9 @@ export async function registerCapabilityRoutes(
   app: FastifyInstance,
   deps: CapabilityRouteDeps | SearchService,
 ): Promise<void> {
-  const { searchService, usageService } =
+  const { searchService, usageService, auditService } =
     deps instanceof SearchService
-      ? { searchService: deps, usageService: undefined }
+      ? { searchService: deps, usageService: undefined, auditService: undefined }
       : (deps as CapabilityRouteDeps);
 
   for (const [path, capability] of Object.entries(ROUTE_CAPABILITY_MAP)) {
@@ -47,7 +50,26 @@ export async function registerCapabilityRoutes(
 
       const projectId = req.projectContext?.projectId;
       const apiKeyId = req.projectContext?.apiKeyId ?? "unknown";
+      const defaultProvider = req.projectContext?.defaultProvider ?? "unknown";
+      const resolvedProvider = parsed.data.provider ?? defaultProvider;
       const start = Date.now();
+
+      // Audit: log every search request
+      if (auditService && projectId) {
+        await auditService.log({
+          projectId,
+          actorType: "api_key",
+          actorId: apiKeyId,
+          action: "search.execute",
+          resourceType: "capability",
+          resourceId: capability,
+          details: {
+            requestId,
+            provider: resolvedProvider,
+            query: parsed.data.query,
+          },
+        });
+      }
 
       try {
         const result = await searchService.execute(
@@ -94,12 +116,16 @@ export async function registerCapabilityRoutes(
             ? (err as { statusCode: number }).statusCode
             : 500;
 
+        // Extract actual provider from ProviderError if available
+        const errorProvider =
+          err instanceof ProviderError ? err.provider : resolvedProvider;
+
         if (usageService && projectId) {
           await usageService.recordFailure({
             requestId,
             projectId,
             apiKeyId,
-            provider: parsed.data.provider ?? "unknown",
+            provider: errorProvider,
             capability,
             statusCode,
             latencyMs,
