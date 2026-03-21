@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../lib/api.js";
 import type { Project } from "../../lib/types.js";
@@ -14,7 +14,7 @@ export function ProjectList({ adminKey }: ProjectListProps) {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
 
-  async function loadProjects() {
+  const loadProjects = useCallback(async () => {
     try {
       const list = await api.listProjects(adminKey);
       setProjects(list);
@@ -24,11 +24,11 @@ export function ProjectList({ adminKey }: ProjectListProps) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [adminKey]);
 
   useEffect(() => {
     void loadProjects();
-  }, [adminKey]);
+  }, [loadProjects]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
