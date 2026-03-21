@@ -20,6 +20,10 @@ export interface ApiKeyRow {
 export interface ApiKeyRepository {
   /** Find an active API key record by its SHA-256 hash. */
   findByHash(hash: string): Promise<ApiKeyRow | undefined>;
+  /** Create a new API key record. [AC3] */
+  create?(row: ApiKeyRow): Promise<void>;
+  /** Update the status of an API key. [AC3] */
+  updateStatus?(id: string, status: string): Promise<void>;
 }
 
 /**
@@ -39,6 +43,15 @@ export class InMemoryApiKeyRepository implements ApiKeyRepository {
 
   async findByHash(hash: string): Promise<ApiKeyRow | undefined> {
     return this.keys.find((k) => k.hashedKey === hash && k.status === "active");
+  }
+
+  async create(row: ApiKeyRow): Promise<void> {
+    this.keys.push(row);
+  }
+
+  async updateStatus(id: string, status: string): Promise<void> {
+    const key = this.keys.find((k) => k.id === id);
+    if (key) key.status = status;
   }
 }
 
@@ -60,5 +73,19 @@ export class DrizzleApiKeyRepository implements ApiKeyRepository {
       .where(and(eq(apiKeys.hashedKey, hash), eq(apiKeys.status, "active")))
       .limit(1);
     return rows[0];
+  }
+
+  async create(row: ApiKeyRow): Promise<void> {
+    await this.db.insert(apiKeys).values({
+      id: row.id,
+      projectId: row.projectId,
+      name: `key-${row.id.slice(0, 8)}`,
+      hashedKey: row.hashedKey,
+      status: row.status,
+    });
+  }
+
+  async updateStatus(id: string, status: string): Promise<void> {
+    await this.db.update(apiKeys).set({ status }).where(eq(apiKeys.id, id));
   }
 }

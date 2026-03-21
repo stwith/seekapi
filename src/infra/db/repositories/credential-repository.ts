@@ -24,6 +24,8 @@ export interface CredentialRepository {
     projectId: string,
     provider: string,
   ): Promise<CredentialRow | undefined>;
+  /** Upsert (attach or rotate) a credential for a project + provider. [AC3] */
+  upsert?(row: CredentialRow): Promise<void>;
 }
 
 /**
@@ -46,6 +48,20 @@ export class InMemoryCredentialRepository implements CredentialRepository {
         c.provider === provider &&
         c.status === "active",
     );
+  }
+
+  async upsert(row: CredentialRow): Promise<void> {
+    // Revoke existing active credential for same project+provider
+    const idx = this.credentials.findIndex(
+      (c) =>
+        c.projectId === row.projectId &&
+        c.provider === row.provider &&
+        c.status === "active",
+    );
+    if (idx >= 0) {
+      this.credentials[idx]!.status = "rotated";
+    }
+    this.credentials.push(row);
   }
 }
 
@@ -77,5 +93,27 @@ export class DrizzleCredentialRepository implements CredentialRepository {
       )
       .limit(1);
     return rows[0];
+  }
+
+  async upsert(row: CredentialRow): Promise<void> {
+    // Revoke existing active credential for same project+provider
+    await this.db
+      .update(providerCredentials)
+      .set({ status: "rotated" })
+      .where(
+        and(
+          eq(providerCredentials.projectId, row.projectId),
+          eq(providerCredentials.provider, row.provider),
+          eq(providerCredentials.status, "active"),
+        ),
+      );
+    // Insert new credential
+    await this.db.insert(providerCredentials).values({
+      id: row.id,
+      projectId: row.projectId,
+      provider: row.provider,
+      encryptedSecret: row.encryptedSecret,
+      status: row.status,
+    });
   }
 }

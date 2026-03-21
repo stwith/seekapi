@@ -31,7 +31,10 @@ export async function registerAuthPreHandler(
   app.addHook(
     "preHandler",
     async (req: FastifyRequest, reply: FastifyReply) => {
-      if (PUBLIC_PATHS.has(req.routeOptions.url ?? req.url)) return;
+      const routePath = req.routeOptions.url ?? req.url;
+      if (PUBLIC_PATHS.has(routePath)) return;
+      // Admin routes have their own auth via ADMIN_API_KEY [AC3]
+      if (routePath.startsWith("/v1/admin/")) return;
 
       const header = req.headers.authorization;
       if (!header || !header.toLowerCase().startsWith("bearer ")) {
