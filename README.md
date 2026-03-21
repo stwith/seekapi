@@ -42,9 +42,14 @@ For the full walkthrough — environment setup, bootstrap flow, hitting every en
 
 SeekAPI includes an admin API for managing projects, API keys, and Brave credentials without direct database access. Set `ADMIN_API_KEY` to enable it.
 
+> **Durability:** Without `DATABASE_URL`, all admin-created projects, keys, and credentials are stored in-memory and **lost on restart**. For production use, set `DATABASE_URL` to a PostgreSQL instance and run `pnpm run db:migrate` first.
+
 ```bash
+# Production setup (durable)
+export DATABASE_URL=postgres://seekapi:seekapi@localhost:5432/seekapi
 export ADMIN_API_KEY=your_admin_secret
-export ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
+export ENCRYPTION_KEY=$(openssl rand -hex 32)
+pnpm run db:migrate
 pnpm run dev
 ```
 

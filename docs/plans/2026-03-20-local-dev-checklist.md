@@ -219,12 +219,32 @@ done | sort | uniq -c
 
 ## 10. Operator Bootstrap via Admin API
 
-The admin API lets operators manage projects, credentials, and keys without direct database access. This is the **production-ready** workflow for the Brave-only key distributor.
+The admin API lets operators manage projects, credentials, and keys without direct database access.
+
+> **Durability warning:** Without `DATABASE_URL`, admin-created projects, keys, and credentials are stored in-memory and **lost on process restart**. For production use, configure PostgreSQL and run migrations before bootstrapping.
 
 ### Prerequisites
 
+For **production / durable** setup:
+
 ```bash
 # Add to your .env
+DATABASE_URL=postgres://seekapi:seekapi@localhost:5432/seekapi
+ADMIN_API_KEY=your_admin_secret_here
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+```
+
+```bash
+# Start PostgreSQL (if not already running)
+docker run -d --name seekapi-pg -e POSTGRES_USER=seekapi -e POSTGRES_PASSWORD=seekapi -e POSTGRES_DB=seekapi -p 5432:5432 postgres:16
+
+# Run migrations
+pnpm run db:migrate
+```
+
+For **temporary demo** (data lost on restart):
+
+```bash
 ADMIN_API_KEY=your_admin_secret_here
 ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
 ```
