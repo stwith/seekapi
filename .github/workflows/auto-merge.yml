@@ -105,6 +105,18 @@ jobs:
               return "success";
             }
 
+            function normalizedMergeState(pr) {
+              if (typeof pr.mergeStateStatus === "string") {
+                return pr.mergeStateStatus;
+              }
+
+              if (typeof pr.mergeable_state === "string") {
+                return pr.mergeable_state.toUpperCase();
+              }
+
+              return "UNKNOWN";
+            }
+
             const requiredChecks = ["validate", "comment"];
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -119,13 +131,14 @@ jobs:
 
               const pr = current.data;
               const labels = new Set(pr.labels.map((label) => label.name));
+              const mergeState = normalizedMergeState(pr);
 
               if (pr.state !== "open") continue;
               if (pr.base.ref !== "main") continue;
               if (pr.draft) continue;
               if (!labels.has("automerge")) continue;
-              if (pr.mergeStateStatus !== "CLEAN") {
-                core.info(`PR #${pr.number} not mergeable yet: mergeStateStatus=${pr.mergeStateStatus}`);
+              if (mergeState !== "CLEAN") {
+                core.info(`PR #${pr.number} not mergeable yet: mergeStateStatus=${mergeState}`);
                 continue;
               }
 
