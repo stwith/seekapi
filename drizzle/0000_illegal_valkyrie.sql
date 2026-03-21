@@ -1,3 +1,6 @@
+-- Ensure gen_random_uuid() is available on PostgreSQL < 14
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+--> statement-breakpoint
 CREATE TABLE "api_keys" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"project_id" uuid NOT NULL,
