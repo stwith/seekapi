@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { api } from "../../lib/api.js";
 
 interface FlowRunnerProps {
@@ -30,7 +30,9 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
   );
   const [running, setRunning] = useState(false);
   const [braveSecret, setBraveSecret] = useState("");
+  const braveSecretRef = useRef("");
   const [searchQuery, setSearchQuery] = useState("seekapi test");
+  const searchQueryRef = useRef("seekapi test");
 
   const updateStep = useCallback(
     (idx: number, result: StepResult) =>
@@ -39,8 +41,7 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
   );
 
   async function runFlow() {
-    if (!braveSecret.trim()) {
-      alert("Enter a Brave API secret to run the flow.");
+    if (!braveSecretRef.current.trim()) {
       return;
     }
     setRunning(true);
@@ -50,20 +51,24 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
     let keyA = "";
     let keyB = "";
     let keyBId = "";
+    let currentStep = 0;
 
     try {
       // Step 1: Create project
+      currentStep = 0;
       updateStep(0, { status: "running" });
       const project = await api.createProject(adminKey, `flow-test-${Date.now()}`);
       projectId = project.id;
       updateStep(0, { status: "success", detail: `Project: ${project.id}`, timestamp: new Date().toISOString() });
 
       // Step 2: Attach Brave credential
+      currentStep = 1;
       updateStep(1, { status: "running" });
-      await api.upsertCredential(adminKey, projectId, "brave", braveSecret.trim());
+      await api.upsertCredential(adminKey, projectId, "brave", braveSecretRef.current.trim());
       updateStep(1, { status: "success", detail: "Brave credential attached", timestamp: new Date().toISOString() });
 
       // Step 3: Enable search.web
+      currentStep = 2;
       updateStep(2, { status: "running" });
       await api.configureBinding(adminKey, projectId, {
         provider: "brave",
@@ -74,12 +79,14 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
       updateStep(2, { status: "success", detail: "search.web enabled", timestamp: new Date().toISOString() });
 
       // Step 4: Mint Key A
+      currentStep = 3;
       updateStep(3, { status: "running" });
       const keyAResult = await api.createApiKey(adminKey, projectId);
       keyA = keyAResult.rawKey;
       updateStep(3, { status: "success", detail: `Key A: ${keyA.slice(0, 12)}...`, timestamp: new Date().toISOString() });
 
       // Step 5: Mint Key B
+      currentStep = 4;
       updateStep(4, { status: "running" });
       const keyBResult = await api.createApiKey(adminKey, projectId);
       keyB = keyBResult.rawKey;
@@ -87,8 +94,9 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
       updateStep(4, { status: "success", detail: `Key B: ${keyB.slice(0, 12)}...`, timestamp: new Date().toISOString() });
 
       // Step 6: Search with Key A
+      currentStep = 5;
       updateStep(5, { status: "running" });
-      const searchA = await api.search(keyA, searchQuery);
+      const searchA = await api.search(keyA, searchQueryRef.current);
       if (searchA.status === 200) {
         updateStep(5, { status: "success", detail: `HTTP ${searchA.status}`, timestamp: new Date().toISOString() });
       } else {
@@ -98,8 +106,9 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
       }
 
       // Step 7: Search with Key B
+      currentStep = 6;
       updateStep(6, { status: "running" });
-      const searchB = await api.search(keyB, searchQuery);
+      const searchB = await api.search(keyB, searchQueryRef.current);
       if (searchB.status === 200) {
         updateStep(6, { status: "success", detail: `HTTP ${searchB.status}`, timestamp: new Date().toISOString() });
       } else {
@@ -109,13 +118,15 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
       }
 
       // Step 8: Disable Key B
+      currentStep = 7;
       updateStep(7, { status: "running" });
       await api.disableApiKey(adminKey, keyBId);
       updateStep(7, { status: "success", detail: "Key B disabled", timestamp: new Date().toISOString() });
 
       // Step 9: Verify Key B gets 401
+      currentStep = 8;
       updateStep(8, { status: "running" });
-      const verifyB = await api.search(keyB, searchQuery);
+      const verifyB = await api.search(keyB, searchQueryRef.current);
       if (verifyB.status === 401) {
         updateStep(8, { status: "success", detail: `HTTP ${verifyB.status} (expected)`, timestamp: new Date().toISOString() });
       } else {
@@ -125,22 +136,20 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
       }
 
       // Step 10: Verify Key A still succeeds
+      currentStep = 9;
       updateStep(9, { status: "running" });
-      const verifyA = await api.search(keyA, searchQuery);
+      const verifyA = await api.search(keyA, searchQueryRef.current);
       if (verifyA.status === 200) {
         updateStep(9, { status: "success", detail: `HTTP ${verifyA.status}`, timestamp: new Date().toISOString() });
       } else {
         updateStep(9, { status: "failure", detail: `HTTP ${verifyA.status} (expected 200)`, timestamp: new Date().toISOString() });
       }
     } catch (err: unknown) {
-      const currentRunning = steps.findIndex((s) => s.status === "running");
-      if (currentRunning >= 0) {
-        updateStep(currentRunning, {
-          status: "failure",
-          detail: (err as Error).message,
-          timestamp: new Date().toISOString(),
-        });
-      }
+      updateStep(currentStep, {
+        status: "failure",
+        detail: (err as Error).message,
+        timestamp: new Date().toISOString(),
+      });
     } finally {
       setRunning(false);
     }
@@ -158,13 +167,13 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
         <input
           type="password"
           value={braveSecret}
-          onChange={(e) => setBraveSecret(e.target.value)}
+          onChange={(e) => { setBraveSecret(e.target.value); braveSecretRef.current = e.target.value; }}
           placeholder="Brave API Secret"
           style={{ padding: 6, width: 250 }}
         />
         <input
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => { setSearchQuery(e.target.value); searchQueryRef.current = e.target.value; }}
           placeholder="Search query"
           style={{ padding: 6, width: 200 }}
         />
