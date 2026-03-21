@@ -140,6 +140,20 @@ Symptoms: admin endpoints return unexpected errors.
 | 404 "Project not found" | Project ID doesn't exist or is inactive | Create a project first via `POST /v1/admin/projects` |
 | Disabled key still works | Key was disabled but previous auth was cached | Keys are looked up per-request; verify the disable call returned 200 |
 
+### Stats & Query Endpoints (Phase 3.5)
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /v1/admin/stats/dashboard` | Aggregated request stats (total, success, failure, avg latency) |
+| `GET /v1/admin/stats/timeseries` | Time series data (`?granularity=hour\|day`) |
+| `GET /v1/admin/stats/capabilities` | Per-capability request breakdown |
+| `GET /v1/admin/usage` | Paginated usage events (`?page=&pageSize=&capability=&success=`) |
+| `GET /v1/admin/projects/:id/keys/stats` | Per-key usage stats for a project |
+| `GET /v1/admin/audit` | Paginated audit log (`?action=&projectId=`) |
+| `GET /v1/admin/projects/:id/quota` | Project quota config + current usage |
+| `PUT /v1/admin/projects/:id/quota` | Create/update quota limits |
+| `GET /v1/admin/quotas` | List all project quotas with usage |
+
 ### Per-Key Attribution
 
 Each downstream API key carries its own `apiKeyId` through the request lifecycle:
@@ -161,3 +175,28 @@ Structured JSON logs (via Pino) include:
 - `auditEntry.action` — security/operational event
 
 Sensitive data (credentials, API keys) is never logged.
+
+## Operator Console (Frontend)
+
+The frontend is a React + Vite app at `frontend/` with Tailwind CSS styling.
+
+| Page | Path | Description |
+|---|---|---|
+| Overview | `/` | Server health + project list |
+| Dashboard | `/dashboard` | Stats cards, time series chart, capability breakdown |
+| Projects | `/projects` | CRUD project management |
+| Project Detail | `/projects/:id` | Credential, bindings, keys per project |
+| API Keys | `/keys` | Per-key usage stats across all projects |
+| Usage Records | `/usage` | Filterable, paginated request log |
+| Subscriptions | `/subscriptions` | Quota cards with edit modal |
+| Flow Runner | `/flow-runner` | 10-step end-to-end Brave workflow test |
+
+### Frontend Scripts
+
+| Command | Purpose |
+|---|---|
+| `pnpm --dir frontend dev` | Start dev server on port 5173 |
+| `pnpm --dir frontend test` | Run Vitest unit tests |
+| `pnpm --dir frontend build` | Production build |
+| `pnpm --dir frontend run lint` | ESLint check |
+| `pnpm --dir frontend run typecheck` | TypeScript check |
