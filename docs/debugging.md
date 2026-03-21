@@ -36,6 +36,7 @@ It exists so an agent or reviewer can start the system, prepare data, run smoke 
 - Include `STATUS: READY` when the PR is mergeable
 - Include `STATUS: BLOCKED` when Claude still has fixes to make
 - List blocking issues with a `BLOCKING:` prefix so Claude can repair them deterministically
+- Resolve fixed review threads before posting `STATUS: READY`
 - Auto-merge will wait for the latest Codex review status to become `READY` and for all review threads to be resolved
 
 ## Common Failure Buckets
