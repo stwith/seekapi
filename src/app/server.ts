@@ -15,6 +15,8 @@ async function main(): Promise<void> {
       ?? (process.env["BRAVE_API_KEY"] && !process.env["DATABASE_URL"]
         ? (process.env["SEED_PROJECT_ID"] ?? "proj_demo_001")
         : undefined),
+    // Admin API — enabled when ADMIN_API_KEY is set [AC3]
+    adminApiKey: process.env["ADMIN_API_KEY"],
   });
 
   try {

@@ -33,6 +33,10 @@ export interface ProjectWithBindings {
 export interface ProjectRepository {
   /** Find an active project by id, including provider bindings. */
   findById(projectId: string): Promise<ProjectWithBindings | undefined>;
+  /** Create a new project. [AC3] */
+  create?(project: ProjectRow): Promise<void>;
+  /** Upsert a provider binding for a project. [AC3] */
+  upsertBinding?(projectId: string, binding: ProviderBindingRow): Promise<void>;
 }
 
 /**
@@ -49,6 +53,33 @@ export class InMemoryProjectRepository implements ProjectRepository {
     const result = this.projects.get(projectId);
     if (!result || result.project.status !== "active") return undefined;
     return result;
+  }
+
+  async create(project: ProjectRow): Promise<void> {
+    this.projects.set(project.id, {
+      project,
+      bindings: [],
+      defaultProvider: "",
+    });
+  }
+
+  async upsertBinding(projectId: string, binding: ProviderBindingRow): Promise<void> {
+    const entry = this.projects.get(projectId);
+    if (!entry) return;
+    const idx = entry.bindings.findIndex(
+      (b) => b.provider === binding.provider && b.capability === binding.capability,
+    );
+    if (idx >= 0) {
+      entry.bindings[idx] = binding;
+    } else {
+      entry.bindings.push(binding);
+    }
+    // Derive defaultProvider from bindings
+    const enabled = entry.bindings.filter((b) => b.enabled);
+    if (enabled.length > 0) {
+      enabled.sort((a, b) => a.priority - b.priority);
+      entry.defaultProvider = enabled[0]!.provider;
+    }
   }
 }
 
@@ -114,5 +145,43 @@ export class DrizzleProjectRepository implements ProjectRepository {
       bindings: bindingRows,
       defaultProvider,
     };
+  }
+
+  async create(projectRow: ProjectRow): Promise<void> {
+    await this.db.insert(projects).values({
+      id: projectRow.id,
+      name: projectRow.name,
+      status: projectRow.status,
+    });
+  }
+
+  async upsertBinding(projectId: string, binding: ProviderBindingRow): Promise<void> {
+    // Delete existing binding for same project+provider+capability, then insert
+    const existing = await this.db
+      .select({ id: providerBindings.id })
+      .from(providerBindings)
+      .where(
+        and(
+          eq(providerBindings.projectId, projectId),
+          eq(providerBindings.provider, binding.provider),
+          eq(providerBindings.capability, binding.capability),
+        ),
+      )
+      .limit(1);
+
+    if (existing[0]) {
+      await this.db
+        .update(providerBindings)
+        .set({ enabled: binding.enabled, priority: binding.priority })
+        .where(eq(providerBindings.id, existing[0].id));
+    } else {
+      await this.db.insert(providerBindings).values({
+        projectId,
+        provider: binding.provider,
+        capability: binding.capability,
+        enabled: binding.enabled,
+        priority: binding.priority,
+      });
+    }
   }
 }

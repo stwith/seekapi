@@ -4,6 +4,8 @@ import { AuthService } from "../modules/auth/service/auth-service.js";
 import { ProjectService } from "../modules/projects/service/project-service.js";
 import { registerCapabilityRoutes } from "../modules/capabilities/http/routes.js";
 import { registerHealthRoutes } from "../modules/health/http/routes.js";
+import { registerAdminRoutes } from "../modules/admin/http/routes.js";
+import { AdminService } from "../modules/admin/service/admin-service.js";
 import { SearchService } from "../modules/capabilities/service/search-service.js";
 import { ProviderRegistry } from "../providers/core/registry.js";
 import { BraveAdapter } from "../providers/brave/adapter.js";
@@ -45,6 +47,11 @@ export interface AppOptions {
    * `/v1/health/providers` reports actual provider readiness. [AC4]
    */
   healthProbeProjectId?: string;
+  /**
+   * Admin API key for operator management endpoints (/v1/admin/*).
+   * When set, admin routes are registered and protected by this key. [AC3]
+   */
+  adminApiKey?: string;
 }
 
 /**
@@ -125,6 +132,20 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     ? createRedisClient(redisUrl)
     : createInMemoryRedisClient();
   const rateLimitService = new RateLimitService(redis);
+
+  // Admin endpoints — operator management via ADMIN_API_KEY [AC3]
+  if (opts.adminApiKey) {
+    const adminService = new AdminService({
+      apiKeyRepository,
+      projectRepository,
+      credentialRepository,
+      encryptionKey,
+    });
+    await registerAdminRoutes(app, {
+      adminService,
+      adminApiKey: opts.adminApiKey,
+    });
+  }
 
   // Downstream API key authentication with rate limiting [AC2]
   await registerAuthPreHandler(app, { authService, rateLimitService });
