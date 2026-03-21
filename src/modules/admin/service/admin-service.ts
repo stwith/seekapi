@@ -9,9 +9,16 @@
 import { randomUUID } from "node:crypto";
 import { hashKey } from "../../auth/service/auth-service.js";
 import { encryptSecret } from "../../credentials/service/credential-service.js";
+import { MVP_CAPABILITIES } from "../../../providers/core/types.js";
 import type { ApiKeyRepository } from "../../../infra/db/repositories/api-key-repository.js";
 import type { ProjectRepository, ProviderBindingRow } from "../../../infra/db/repositories/project-repository.js";
 import type { CredentialRepository } from "../../../infra/db/repositories/credential-repository.js";
+
+/** Providers allowed in the current phase (Brave-only). */
+const ALLOWED_PROVIDERS = new Set(["brave"]);
+
+/** Capabilities allowed in the current phase. */
+const ALLOWED_CAPABILITIES = new Set<string>(MVP_CAPABILITIES);
 
 export interface AdminServiceDeps {
   apiKeyRepository: ApiKeyRepository;
@@ -90,6 +97,13 @@ export class AdminService {
     provider: string,
     secret: string,
   ): Promise<{ id: string }> {
+    if (!ALLOWED_PROVIDERS.has(provider)) {
+      throw new AdminError(
+        `Provider "${provider}" is not supported in the current phase. Allowed: ${[...ALLOWED_PROVIDERS].join(", ")}`,
+        "INVALID_PROVIDER",
+      );
+    }
+
     // Verify project exists
     const project = await this.deps.projectRepository.findById(projectId);
     if (!project) {
@@ -118,6 +132,19 @@ export class AdminService {
     projectId: string,
     binding: ProviderBindingRow,
   ): Promise<void> {
+    if (!ALLOWED_PROVIDERS.has(binding.provider)) {
+      throw new AdminError(
+        `Provider "${binding.provider}" is not supported in the current phase. Allowed: ${[...ALLOWED_PROVIDERS].join(", ")}`,
+        "INVALID_PROVIDER",
+      );
+    }
+    if (!ALLOWED_CAPABILITIES.has(binding.capability)) {
+      throw new AdminError(
+        `Capability "${binding.capability}" is not supported in the current phase. Allowed: ${[...ALLOWED_CAPABILITIES].join(", ")}`,
+        "INVALID_CAPABILITY",
+      );
+    }
+
     // Verify project exists
     const project = await this.deps.projectRepository.findById(projectId);
     if (!project) {

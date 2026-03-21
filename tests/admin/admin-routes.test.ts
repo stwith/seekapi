@@ -160,6 +160,26 @@ describe("Admin routes [AC3]", () => {
     expect(body.id).toBeDefined();
   });
 
+  it("rejects unsupported provider for credential", async () => {
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Provider Reject Test" },
+    });
+    const project = projRes.json();
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "google", secret: "some_key" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("BAD_REQUEST");
+    expect(res.json().message).toContain("google");
+  });
+
   it("rejects credential without required fields", async () => {
     const res = await app.inject({
       method: "POST",
@@ -190,6 +210,44 @@ describe("Admin routes [AC3]", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().status).toBe("configured");
+  });
+
+  it("rejects unsupported provider for binding", async () => {
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Binding Provider Reject" },
+    });
+    const project = projRes.json();
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/bindings`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "google", capability: "search.web" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toContain("google");
+  });
+
+  it("rejects unsupported capability for binding", async () => {
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Binding Cap Reject" },
+    });
+    const project = projRes.json();
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/bindings`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", capability: "search.answer" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toContain("search.answer");
   });
 
   it("rejects binding without required fields", async () => {

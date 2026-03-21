@@ -113,8 +113,13 @@ export async function registerAdminRoutes(
         );
         return reply.status(201).send(result);
       } catch (err) {
-        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
-          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        if (err instanceof AdminError) {
+          if (err.code === "PROJECT_NOT_FOUND") {
+            return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+          }
+          if (err.code === "INVALID_PROVIDER") {
+            return reply.status(400).send({ error: "BAD_REQUEST", message: err.message });
+          }
         }
         throw err;
       }
@@ -150,8 +155,13 @@ export async function registerAdminRoutes(
         });
         return reply.status(200).send({ status: "configured" });
       } catch (err) {
-        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
-          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        if (err instanceof AdminError) {
+          if (err.code === "PROJECT_NOT_FOUND") {
+            return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+          }
+          if (err.code === "INVALID_PROVIDER" || err.code === "INVALID_CAPABILITY") {
+            return reply.status(400).send({ error: "BAD_REQUEST", message: err.message });
+          }
         }
         throw err;
       }
