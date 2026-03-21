@@ -5,3 +5,5 @@ dist
 *.d.ts
 !vite.config.ts
 !eslint.config.js
+test-results/
+playwright-report/
