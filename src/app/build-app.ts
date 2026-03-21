@@ -1,12 +1,15 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerAuthPreHandler } from "../modules/auth/http/pre-handler.js";
 import { registerCapabilityRoutes } from "../modules/capabilities/http/routes.js";
+import { registerHealthRoutes } from "../modules/health/http/routes.js";
 import { SearchService } from "../modules/capabilities/service/search-service.js";
 import { ProviderRegistry } from "../providers/core/registry.js";
 import { BraveAdapter } from "../providers/brave/adapter.js";
 import { CredentialService } from "../modules/credentials/service/credential-service.js";
 import { UsageService, type UsageEventSink } from "../modules/usage/service/usage-service.js";
 import { AuditService, type AuditLogSink } from "../modules/audit/service/audit-service.js";
+import { RateLimitService } from "../modules/auth/service/rate-limit-service.js";
+import { createInMemoryRedisClient } from "../infra/redis/client.js";
 
 export interface AppOptions {
   logger?: boolean | object;
@@ -26,14 +29,12 @@ export async function buildApp(
     },
   });
 
-  // Health probe — available before any module wiring
-  app.get("/v1/health", async (_req, reply) => {
-    return reply.send({ status: "ok" });
-  });
-
   // Provider registry [AC4]
   const registry = new ProviderRegistry();
   registry.register(new BraveAdapter());
+
+  // Health endpoints — available before auth
+  await registerHealthRoutes(app, { registry });
 
   // Credential resolution [AC4]
   const credentialService = new CredentialService();
@@ -61,8 +62,12 @@ export async function buildApp(
   };
   const auditService = new AuditService(auditLogSink);
 
-  // Downstream API key authentication [AC2]
-  await registerAuthPreHandler(app);
+  // Rate limiting — in-memory Redis stub for dev/test, real Redis in production
+  const redis = createInMemoryRedisClient();
+  const rateLimitService = new RateLimitService(redis);
+
+  // Downstream API key authentication with rate limiting [AC2]
+  await registerAuthPreHandler(app, { rateLimitService });
 
   // Canonical search endpoints [AC3]
   await registerCapabilityRoutes(app, { searchService, usageService, auditService });

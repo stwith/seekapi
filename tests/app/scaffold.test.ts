@@ -13,7 +13,7 @@ describe("app scaffold", () => {
     const app = await buildApp({ logger: false });
     const res = await app.inject({ method: "GET", url: "/v1/health" });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ status: "ok" });
+    expect(res.json()).toMatchObject({ status: "ok" });
     await app.close();
   });
 });
