@@ -1,4 +1,4 @@
-# SeekAPI Phase 3 Plan
+# SeekAPI Phase 4 Plan
 
 **Date:** 2026-03-21
 
@@ -6,11 +6,11 @@
 
 **Goal:** Prove SeekAPI as a true multi-provider API dispatcher by adding a second search provider without changing the downstream canonical API or weakening the project-scoped control model.
 
-**Context:** Phase 2 is focused on making the Brave Search path fully operational. Phase 3 starts only after that path is repository-backed, observable, and stable. The primary purpose of Phase 3 is to validate the architecture through a second provider, not to widen capability surface first.
+**Context:** Phase 2.5 finished the Brave-only control plane, and the new Phase 3 adds an operator console on top of that flow. Phase 4 starts only after the Brave path is repository-backed, observable, operator-usable, and stable. The primary purpose of Phase 4 is to validate the architecture through a second provider, not to widen capability surface first.
 
 ## Primary Direction
 
-Phase 3 is a horizontal expansion phase.
+Phase 4 is a horizontal expansion phase.
 
 The product question it answers is:
 
@@ -43,7 +43,7 @@ AC6: Local verification instructions show how to exercise both providers through
 - Adding three or more providers in one phase
 - Multi-provider racing
 - Cost optimization routing
-- Admin UI
+- Further operator console changes beyond what Phase 3 already delivers
 - Billing
 - Provider passthrough API
 - New non-search product surfaces
@@ -72,32 +72,32 @@ Each provider-specific task should also include targeted adapter and end-to-end 
 
 ## Candidate Task Breakdown
 
-### Task 17: Select and model the second provider
+### Task 32: Select and model the second provider
 
 - choose the second provider
 - define credential, capability, and health assumptions
 - document any canonical mapping tension before coding
 
-### Task 18: Implement the second provider adapter
+### Task 33: Implement the second provider adapter
 
 - add request mapping
 - add response mapping
 - add typed provider error handling
 - add health probe behavior
 
-### Task 19: Extend repository-backed provider policy
+### Task 34: Extend repository-backed provider policy
 
 - persist project-level provider enablement for the new provider
 - persist fallback ordering across at least two providers
 - validate health-aware selection and deterministic fallback
 
-### Task 20: Extend end-to-end routing and observability
+### Task 35: Extend end-to-end routing and observability
 
 - prove canonical routes can hit both providers
 - prove usage, audit, and metrics remain correct across provider choice
 - prove health and fallback semantics are still operator-visible
 
-### Task 21: Update operator workflow for multi-provider local verification
+### Task 36: Update operator workflow for multi-provider local verification
 
 - document local env setup for both providers
 - document manual verification for each provider
@@ -105,7 +105,7 @@ Each provider-specific task should also include targeted adapter and end-to-end 
 
 ## Backup Direction
 
-If Phase 3 is intentionally deferred, the backup direction is vertical capability expansion.
+If Phase 4 is intentionally deferred, the backup direction is vertical capability expansion.
 
 That backup means:
 

@@ -6,7 +6,7 @@
 
 **Goal:** Close the Brave-only control-plane gap so SeekAPI can mint and manage downstream keys for multiple users while routing them through one managed Brave upstream credential path.
 
-**Context:** Phase 2 proved the Brave execution path, observability persistence, health behavior, and local operator workflow. It did not fully finish the product loop for a Brave-only service distributor because project records, downstream API keys, provider credentials, and routing policy are still primarily seeded or in-memory in the runtime bootstrap path. Before Phase 3 adds another provider, SeekAPI should first become a real Brave key distributor and manager.
+**Context:** Phase 2 proved the Brave execution path, observability persistence, health behavior, and local operator workflow. It did not fully finish the product loop for a Brave-only service distributor because project records, downstream API keys, provider credentials, and routing policy are still primarily seeded or in-memory in the runtime bootstrap path. Before Phase 4 adds another provider, SeekAPI should first become a real Brave key distributor and manager.
 
 ## Product Focus
 
@@ -202,4 +202,5 @@ Phase 2.5 is complete only when SeekAPI can act as a real Brave-only key distrib
 ## Next Stage
 
 Only after Phase 2.5 should Phase 3 begin.
-At that point the multi-provider expansion will be validating a real service-control plane, not just a clean adapter abstraction.
+Phase 3 adds the operator console on top of the Brave-only control plane.
+Phase 4 then validates multi-provider expansion on top of that real operator product loop.
