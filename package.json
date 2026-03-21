@@ -7,15 +7,15 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "tsx watch src/app/server.ts",
+    "dev": "node --env-file-if-exists=.env --import=tsx --watch src/app/server.ts",
     "build": "tsc",
-    "start": "node dist/app/server.js",
+    "start": "node --env-file-if-exists=.env dist/app/server.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "pr:open": "bash scripts/open-pr.sh",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:generate": "node --env-file-if-exists=.env ./node_modules/.bin/drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=.env ./node_modules/.bin/drizzle-kit migrate"
   },
   "dependencies": {
     "fastify": "^5.2.1",

@@ -20,7 +20,10 @@ Copy the template and fill in your values:
 
 ```bash
 cp .env.example .env
+# Edit .env with your actual values (e.g. BRAVE_API_KEY)
 ```
+
+The `npm run dev`, `npm start`, `npm run db:generate`, and `npm run db:migrate` scripts automatically load `.env` via Node's `--env-file-if-exists` flag. No manual `source` or `export` is needed.
 
 Key variables:
 

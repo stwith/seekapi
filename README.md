@@ -31,7 +31,7 @@ For a full walkthrough — starting dependencies, setting env vars, seeding data
 
 | Command              | Description                        |
 | -------------------- | ---------------------------------- |
-| `npm run dev`        | Start with hot reload (tsx watch)  |
+| `npm run dev`        | Start with hot reload (auto-loads `.env`) |
 | `npm run build`      | Compile TypeScript                 |
 | `npm start`          | Run compiled output                |
 | `npm test`           | Run tests (vitest)                 |
