@@ -9,5 +9,5 @@ export type {
 } from "./project-repository.js";
 export { InMemoryProjectRepository, DrizzleProjectRepository } from "./project-repository.js";
 
-export type { CredentialRepository, CredentialRow } from "./credential-repository.js";
+export type { CredentialRepository, CredentialRow, CredentialMeta } from "./credential-repository.js";
 export { InMemoryCredentialRepository, DrizzleCredentialRepository } from "./credential-repository.js";

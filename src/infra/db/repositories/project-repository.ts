@@ -33,6 +33,10 @@ export interface ProjectWithBindings {
 export interface ProjectRepository {
   /** Find an active project by id, including provider bindings. */
   findById(projectId: string): Promise<ProjectWithBindings | undefined>;
+  /** List all projects. [Phase 3 AC4] */
+  listAll?(): Promise<ProjectRow[]>;
+  /** List bindings for a project. [Phase 3 AC4] */
+  listBindings?(projectId: string): Promise<ProviderBindingRow[]>;
   /** Create a new project. [AC3] */
   create?(project: ProjectRow): Promise<void>;
   /** Upsert a provider binding for a project. [AC3] */
@@ -53,6 +57,14 @@ export class InMemoryProjectRepository implements ProjectRepository {
     const result = this.projects.get(projectId);
     if (!result || result.project.status !== "active") return undefined;
     return result;
+  }
+
+  async listAll(): Promise<ProjectRow[]> {
+    return [...this.projects.values()].map((p) => p.project);
+  }
+
+  async listBindings(projectId: string): Promise<ProviderBindingRow[]> {
+    return this.projects.get(projectId)?.bindings ?? [];
   }
 
   async create(project: ProjectRow): Promise<void> {
@@ -145,6 +157,24 @@ export class DrizzleProjectRepository implements ProjectRepository {
       bindings: bindingRows,
       defaultProvider,
     };
+  }
+
+  async listAll(): Promise<ProjectRow[]> {
+    return this.db
+      .select({ id: projects.id, name: projects.name, status: projects.status })
+      .from(projects);
+  }
+
+  async listBindings(projectId: string): Promise<ProviderBindingRow[]> {
+    return this.db
+      .select({
+        provider: providerBindings.provider,
+        capability: providerBindings.capability,
+        enabled: providerBindings.enabled,
+        priority: providerBindings.priority,
+      })
+      .from(providerBindings)
+      .where(eq(providerBindings.projectId, projectId));
   }
 
   async create(projectRow: ProjectRow): Promise<void> {

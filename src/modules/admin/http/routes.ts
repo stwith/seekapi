@@ -44,6 +44,88 @@ export async function registerAdminRoutes(
     }
   }
 
+  // --- List projects [Phase 3 AC4] ---
+  app.get(
+    "/v1/admin/projects",
+    { preHandler: checkAdminAuth },
+    async (_req: FastifyRequest, reply: FastifyReply) => {
+      const projects = await adminService.listProjects();
+      return reply.send(projects);
+    },
+  );
+
+  // --- Get project detail [Phase 3 AC4] ---
+  app.get(
+    "/v1/admin/projects/:projectId",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      try {
+        const detail = await adminService.getProjectDetail(projectId);
+        return reply.send(detail);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // --- List project keys [Phase 3 AC4] ---
+  app.get(
+    "/v1/admin/projects/:projectId/keys",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      try {
+        const keys = await adminService.listProjectKeys(projectId);
+        return reply.send(keys);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // --- List project bindings [Phase 3 AC4] ---
+  app.get(
+    "/v1/admin/projects/:projectId/bindings",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      try {
+        const bindings = await adminService.listProjectBindings(projectId);
+        return reply.send(bindings);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // --- Get credential metadata [Phase 3 AC4] ---
+  app.get(
+    "/v1/admin/projects/:projectId/credentials",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      try {
+        const meta = await adminService.getCredentialMeta(projectId);
+        return reply.send(meta);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
   // --- Create project ---
   app.post(
     "/v1/admin/projects",

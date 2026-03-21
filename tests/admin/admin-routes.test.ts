@@ -261,6 +261,212 @@ describe("Admin routes [AC3]", () => {
   });
 });
 
+describe("Admin read endpoints [Phase 3 AC4]", () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    const repos = seedTestRepositories();
+    app = await buildApp({
+      logger: false,
+      ...repos,
+      adminApiKey: ADMIN_KEY,
+    });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it("lists projects", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(Array.isArray(body)).toBe(true);
+    // Seeded data has at least the demo project
+    expect(body.length).toBeGreaterThanOrEqual(1);
+    expect(body[0].id).toBeDefined();
+    expect(body[0].name).toBeDefined();
+  });
+
+  it("gets project detail", async () => {
+    // Create a project and populate it
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Detail Test Project" },
+    });
+    const project = projRes.json();
+
+    // Add binding
+    await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/bindings`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+    });
+
+    // Add credential
+    await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", secret: "BSA_test_read" },
+    });
+
+    // Mint a key
+    await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/keys`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/admin/projects/${project.id}`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const detail = res.json();
+    expect(detail.project.id).toBe(project.id);
+    expect(detail.bindings.length).toBe(1);
+    expect(detail.bindings[0].capability).toBe("search.web");
+    expect(detail.keys.length).toBe(1);
+    expect(detail.keys[0].status).toBe("active");
+    // Credential metadata present without raw secret
+    expect(detail.credential).not.toBeNull();
+    expect(detail.credential.provider).toBe("brave");
+    expect(detail.credential.encryptedSecret).toBeUndefined();
+  });
+
+  it("returns 404 for non-existent project detail", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/admin/projects/nonexistent",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("lists project keys", async () => {
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Key List Project" },
+    });
+    const project = projRes.json();
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/keys`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/admin/projects/${project.id}/keys`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const keys = res.json();
+    expect(Array.isArray(keys)).toBe(true);
+    expect(keys.length).toBe(1);
+    expect(keys[0].status).toBe("active");
+    // Must not contain hashedKey
+    expect(keys[0].hashedKey).toBeUndefined();
+  });
+
+  it("lists project bindings", async () => {
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Binding List Project" },
+    });
+    const project = projRes.json();
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/bindings`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/admin/projects/${project.id}/bindings`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const bindings = res.json();
+    expect(Array.isArray(bindings)).toBe(true);
+    expect(bindings.length).toBe(1);
+    expect(bindings[0].capability).toBe("search.web");
+  });
+
+  it("gets credential metadata without raw secret", async () => {
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Cred Meta Project" },
+    });
+    const project = projRes.json();
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", secret: "BSA_meta_test" },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/admin/projects/${project.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const meta = res.json();
+    expect(meta.provider).toBe("brave");
+    expect(meta.status).toBe("active");
+    // Must not contain encrypted secret
+    expect(meta.encryptedSecret).toBeUndefined();
+    expect(meta.secret).toBeUndefined();
+  });
+
+  it("returns null credential when none attached", async () => {
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "No Cred Project" },
+    });
+    const project = projRes.json();
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/admin/projects/${project.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toBeNull();
+  });
+
+  it("requires admin auth on read endpoints", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/admin/projects",
+    });
+    expect(res.statusCode).toBe(401);
+  });
+});
+
 describe("Admin end-to-end flow [AC3]", () => {
   let app: FastifyInstance;
 
