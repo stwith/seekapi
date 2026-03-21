@@ -35,9 +35,13 @@ jobs:
 
     steps:
       - name: Merge labeled PR when the full review loop is green
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
+            const MERGEABLE_WAIT_STATES = new Set(["UNKNOWN", "UNSTABLE", "BLOCKED"]);
+            const MERGE_STATE_RETRIES = 6;
+            const MERGE_STATE_DELAY_MS = 5000;
+
             async function getPullRequests() {
               if (context.eventName === "pull_request_target") {
                 return [context.payload.pull_request];
@@ -139,19 +143,45 @@ jobs:
               return "UNKNOWN";
             }
 
+            async function sleep(ms) {
+              await new Promise((resolve) => setTimeout(resolve, ms));
+            }
+
+            async function getStablePull(owner, repo, pullNumber) {
+              let current;
+
+              for (let attempt = 1; attempt <= MERGE_STATE_RETRIES; attempt += 1) {
+                current = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: pullNumber,
+                });
+
+                const mergeState = normalizedMergeState(current.data);
+                if (!MERGEABLE_WAIT_STATES.has(mergeState)) {
+                  return current.data;
+                }
+
+                core.info(
+                  `PR #${pullNumber} merge state is ${mergeState}; ` +
+                  `retrying (${attempt}/${MERGE_STATE_RETRIES}) after ${MERGE_STATE_DELAY_MS}ms`,
+                );
+
+                if (attempt < MERGE_STATE_RETRIES) {
+                  await sleep(MERGE_STATE_DELAY_MS);
+                }
+              }
+
+              return current.data;
+            }
+
             const requiredChecks = ["validate", "comment"];
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const pulls = await getPullRequests();
 
             for (const pull of pulls) {
-              const current = await github.rest.pulls.get({
-                owner,
-                repo,
-                pull_number: pull.number,
-              });
-
-              const pr = current.data;
+              const pr = await getStablePull(owner, repo, pull.number);
               const labels = new Set(pr.labels.map((label) => label.name));
               const mergeState = normalizedMergeState(pr);
 
