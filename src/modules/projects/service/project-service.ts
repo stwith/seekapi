@@ -7,10 +7,11 @@ export interface ProjectContext {
   projectName: string;
   defaultProvider: string;
   allowedProviders: string[];
+  apiKeyId: string;
 }
 
 /** In-memory project store — replaced by DB repository in Task 5. */
-const PROJECTS: Map<string, ProjectContext> = new Map([
+const PROJECTS: Map<string, Omit<ProjectContext, "apiKeyId">> = new Map([
   [
     "proj_demo_001",
     {
@@ -23,7 +24,9 @@ const PROJECTS: Map<string, ProjectContext> = new Map([
 ]);
 
 export class ProjectService {
-  resolve(projectId: string): ProjectContext | undefined {
-    return PROJECTS.get(projectId);
+  resolve(projectId: string, apiKeyId?: string): ProjectContext | undefined {
+    const project = PROJECTS.get(projectId);
+    if (!project) return undefined;
+    return { ...project, apiKeyId: apiKeyId ?? "unknown" };
   }
 }

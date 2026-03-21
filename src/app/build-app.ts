@@ -5,6 +5,7 @@ import { SearchService } from "../modules/capabilities/service/search-service.js
 import { ProviderRegistry } from "../providers/core/registry.js";
 import { BraveAdapter } from "../providers/brave/adapter.js";
 import { CredentialService } from "../modules/credentials/service/credential-service.js";
+import { UsageService, type UsageEventSink } from "../modules/usage/service/usage-service.js";
 
 export interface AppOptions {
   logger?: boolean | object;
@@ -43,11 +44,19 @@ export async function buildApp(
       credentialService.resolve(projectId, provider),
   });
 
+  // Usage event recording
+  const usageEventSink: UsageEventSink = {
+    async record(event) {
+      app.log.info({ usageEvent: event }, "usage event recorded");
+    },
+  };
+  const usageService = new UsageService(usageEventSink);
+
   // Downstream API key authentication [AC2]
   await registerAuthPreHandler(app);
 
   // Canonical search endpoints [AC3]
-  await registerCapabilityRoutes(app, searchService);
+  await registerCapabilityRoutes(app, { searchService, usageService });
 
   return app;
 }

@@ -107,6 +107,43 @@ describe("UsageService", () => {
     expect(event.statusCode).toBe(401);
     expect(event.resultCount).toBe(0);
   });
+
+  it("recordFailure preserves fallbackCount when provided", async () => {
+    const sink = makeUsageSink();
+    const svc = new UsageService(sink);
+
+    await svc.recordFailure({
+      requestId: "req_004",
+      projectId: "proj_001",
+      apiKeyId: "key_001",
+      provider: "bing",
+      capability: "search.web",
+      statusCode: 502,
+      latencyMs: 300,
+      fallbackCount: 2,
+    });
+
+    expect(sink.events).toHaveLength(1);
+    expect(sink.events[0].fallbackCount).toBe(2);
+  });
+
+  it("usage event includes projectId for per-tenant metrics", async () => {
+    const sink = makeUsageSink();
+    const svc = new UsageService(sink);
+
+    await svc.recordSuccess({
+      requestId: "req_005",
+      projectId: "proj_tenant_42",
+      apiKeyId: "key_042",
+      provider: "brave",
+      capability: "search.web",
+      latencyMs: 80,
+      resultCount: 3,
+      fallbackCount: 0,
+    });
+
+    expect(sink.events[0].projectId).toBe("proj_tenant_42");
+  });
 });
 
 /* ------------------------------------------------------------------ */

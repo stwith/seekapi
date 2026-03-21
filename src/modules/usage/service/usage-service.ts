@@ -61,6 +61,7 @@ export class UsageService {
     const attrs = {
       capability: params.capability,
       provider: params.provider,
+      project_id: params.projectId,
       status: "success",
     };
     requestCounter.add(1, attrs);
@@ -70,6 +71,7 @@ export class UsageService {
       fallbackCounter.add(1, {
         capability: params.capability,
         provider: params.provider,
+        project_id: params.projectId,
       });
     }
   }
@@ -83,13 +85,14 @@ export class UsageService {
     capability: Capability;
     statusCode: number;
     latencyMs: number;
+    fallbackCount?: number;
     errorCode?: string;
   }): Promise<void> {
     const event: UsageEvent = {
       ...params,
       success: false,
       resultCount: 0,
-      fallbackCount: 0,
+      fallbackCount: params.fallbackCount ?? 0,
     };
 
     await this.sink.record(event);
@@ -97,6 +100,7 @@ export class UsageService {
     const attrs = {
       capability: params.capability,
       provider: params.provider,
+      project_id: params.projectId,
       status: "error",
     };
     requestCounter.add(1, attrs);
