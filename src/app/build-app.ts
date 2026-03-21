@@ -1,12 +1,19 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerAuthPreHandler } from "../modules/auth/http/pre-handler.js";
 import { registerCapabilityRoutes } from "../modules/capabilities/http/routes.js";
+import { registerHealthRoutes } from "../modules/health/http/routes.js";
 import { SearchService } from "../modules/capabilities/service/search-service.js";
 import { ProviderRegistry } from "../providers/core/registry.js";
 import { BraveAdapter } from "../providers/brave/adapter.js";
 import { CredentialService } from "../modules/credentials/service/credential-service.js";
 import { UsageService, type UsageEventSink } from "../modules/usage/service/usage-service.js";
 import { AuditService, type AuditLogSink } from "../modules/audit/service/audit-service.js";
+import { RateLimitService } from "../modules/auth/service/rate-limit-service.js";
+import {
+  createRedisClient,
+  createInMemoryRedisClient,
+} from "../infra/redis/client.js";
+import { HealthService } from "../modules/health/service/health-service.js";
 
 export interface AppOptions {
   logger?: boolean | object;
@@ -26,17 +33,27 @@ export async function buildApp(
     },
   });
 
-  // Health probe — available before any module wiring
-  app.get("/v1/health", async (_req, reply) => {
-    return reply.send({ status: "ok" });
-  });
-
   // Provider registry [AC4]
   const registry = new ProviderRegistry();
   registry.register(new BraveAdapter());
 
   // Credential resolution [AC4]
   const credentialService = new CredentialService();
+
+  // Health service — caches provider probes to avoid upstream quota burn
+  const healthService = new HealthService({
+    registry,
+    resolveHealthCredential: async (provider) => {
+      try {
+        return await credentialService.resolve("proj_demo_001", provider);
+      } catch {
+        return undefined;
+      }
+    },
+  });
+
+  // Health endpoints — /v1/health is public, /v1/health/providers requires auth
+  await registerHealthRoutes(app, { healthService });
 
   // Search service with real provider wiring [AC4]
   const searchService = new SearchService({
@@ -61,11 +78,23 @@ export async function buildApp(
   };
   const auditService = new AuditService(auditLogSink);
 
-  // Downstream API key authentication [AC2]
-  await registerAuthPreHandler(app);
+  // Rate limiting — real Redis when REDIS_URL is set, in-memory stub otherwise
+  const redisUrl = process.env["REDIS_URL"];
+  const redis = redisUrl
+    ? createRedisClient(redisUrl)
+    : createInMemoryRedisClient();
+  const rateLimitService = new RateLimitService(redis);
+
+  // Downstream API key authentication with rate limiting [AC2]
+  await registerAuthPreHandler(app, { rateLimitService });
 
   // Canonical search endpoints [AC3]
   await registerCapabilityRoutes(app, { searchService, usageService, auditService });
+
+  // Close Redis connection on app shutdown to prevent connection leaks
+  app.addHook("onClose", async () => {
+    await redis.quit();
+  });
 
   return app;
 }

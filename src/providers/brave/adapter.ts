@@ -76,12 +76,38 @@ export class BraveAdapter implements ProviderAdapter {
     };
   }
 
-  /** Health check — placeholder until Task 9 wires real probes. */
-  async healthCheck(_ctx: ProviderHealthContext): Promise<ProviderHealthStatus> {
-    return {
-      provider: this.id,
-      status: "healthy",
-      checkedAt: new Date(),
-    };
+  /** Health check — probes Brave API with a lightweight request. */
+  async healthCheck(ctx: ProviderHealthContext): Promise<ProviderHealthStatus> {
+    if (!ctx.credential) {
+      return {
+        provider: this.id,
+        status: "unavailable",
+        checkedAt: new Date(),
+      };
+    }
+
+    const start = Date.now();
+    try {
+      const timeout = AbortSignal.timeout(5_000);
+      await this.client.search(
+        "web/search",
+        { q: "health", count: 1 },
+        ctx.credential,
+        timeout,
+      );
+      return {
+        provider: this.id,
+        status: "healthy",
+        latencyMs: Date.now() - start,
+        checkedAt: new Date(),
+      };
+    } catch {
+      return {
+        provider: this.id,
+        status: "degraded",
+        latencyMs: Date.now() - start,
+        checkedAt: new Date(),
+      };
+    }
   }
 }

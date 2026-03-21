@@ -32,13 +32,38 @@ describe("BraveAdapter", () => {
     await expect(adapter.validateCredential(null)).rejects.toThrow("non-empty string");
   });
 
-  it("healthCheck returns placeholder status without calling upstream", async () => {
+  it("healthCheck returns unavailable without credential", async () => {
     const adapter = new BraveAdapter();
     const result = await adapter.healthCheck({});
 
     expect(result.provider).toBe("brave");
-    expect(result.status).toBe("healthy");
+    expect(result.status).toBe("unavailable");
     expect(result.checkedAt).toBeInstanceOf(Date);
+  });
+
+  it("healthCheck returns degraded within 5s when upstream hangs", { timeout: 10_000 }, async () => {
+    const adapter = new BraveAdapter();
+    const originalFetch = globalThis.fetch;
+    // Simulate a hanging upstream that respects abort signals
+    globalThis.fetch = ((_url: unknown, init?: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        const signal = init?.signal;
+        if (signal) {
+          signal.addEventListener("abort", () =>
+            reject(new DOMException("The operation was aborted", "AbortError")),
+          );
+        }
+      })) as typeof fetch;
+    try {
+      const start = Date.now();
+      const result = await adapter.healthCheck({ credential: "test-key" });
+      const elapsed = Date.now() - start;
+
+      expect(result.status).toBe("degraded");
+      expect(elapsed).toBeLessThan(10_000); // must not hang indefinitely
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 
