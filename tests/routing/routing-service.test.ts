@@ -24,7 +24,7 @@ function makeConfig(overrides: Partial<RoutingConfig> = {}): RoutingConfig {
   return {
     defaultProvider: () => "brave",
     fallbackOrder: () => ["google", "bing"],
-    allowedProviders: () => ["brave", "google", "bing"],
+    allowedProviders: () => ["brave", "google", "bing"],  // capability param ignored in unit tests
     ...overrides,
   };
 }

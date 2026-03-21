@@ -167,7 +167,7 @@ describe("createRoutingConfig (capability-scoped)", () => {
     expect(config.fallbackOrder("search.web")).toEqual([]);
   });
 
-  it("allowedProviders returns all enabled providers across capabilities", async () => {
+  it("allowedProviders is scoped to the requested capability", async () => {
     const svc = seedProject({
       defaultProvider: "brave",
       bindings: [
@@ -177,7 +177,10 @@ describe("createRoutingConfig (capability-scoped)", () => {
       ],
     });
     const { config } = await resolveConfig(svc);
-    expect(config.allowedProviders()).toEqual(["brave", "google"]);
+    // search.web: only brave (bing is disabled)
+    expect(config.allowedProviders("search.web")).toEqual(["brave"]);
+    // search.news: only google
+    expect(config.allowedProviders("search.news")).toEqual(["google"]);
   });
 });
 
@@ -253,6 +256,21 @@ describe("RoutingService with capability-scoped config", () => {
     const result = routing.selectProvider("search.web");
     expect(result.providerId).toBe("google");
     expect(result.reason).toBe("fallback");
+  });
+
+  it("rejects explicit provider not bound for the requested capability", async () => {
+    const svc = seedProject({
+      defaultProvider: "brave",
+      bindings: [
+        { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+        { provider: "google", capability: "search.news", enabled: true, priority: 0 },
+      ],
+    });
+    const { config } = await resolveConfig(svc);
+    const routing = new RoutingService({ health: allHealthy, config });
+
+    // google is enabled for search.news but NOT for search.web
+    expect(() => routing.selectProvider("search.web", "google")).toThrow(RoutingError);
   });
 
   it("throws when no provider is bound for the requested capability", async () => {

@@ -46,11 +46,9 @@ export function createRoutingConfig(ctx: ProjectContext): RoutingConfig {
         .filter((v, i, a) => a.indexOf(v) === i);
     },
 
-    allowedProviders: () => {
-      // All enabled providers across all capabilities (used by the
-      // explicit-provider check which is not capability-scoped).
+    allowedProviders: (capability: Capability) => {
       return ctx.bindings
-        .filter((b) => b.enabled)
+        .filter((b) => b.enabled && b.capability === capability)
         .map((b) => b.provider)
         .filter((v, i, a) => a.indexOf(v) === i);
     },

@@ -22,8 +22,8 @@ export interface RoutingConfig {
   defaultProvider: (capability: Capability) => string | undefined;
   /** Ordered fallback list for a capability (excluding the default). */
   fallbackOrder: (capability: Capability) => string[];
-  /** Set of providers allowed for the project. */
-  allowedProviders: () => string[];
+  /** Set of providers allowed for a capability. */
+  allowedProviders: (capability: Capability) => string[];
 }
 
 export interface RouteResult {
@@ -54,7 +54,7 @@ export class RoutingService {
     capability: Capability,
     explicitProvider?: string,
   ): RouteResult {
-    const allowed = new Set(this.config.allowedProviders());
+    const allowed = new Set(this.config.allowedProviders(capability));
 
     // 1. Explicit provider
     if (explicitProvider) {
@@ -112,7 +112,7 @@ export class RoutingService {
     }
 
     // Default + fallback chain
-    const allowed = new Set(this.config.allowedProviders());
+    const allowed = new Set(this.config.allowedProviders(capability));
     const tried = new Set<string>();
     const candidates = this.buildFallbackCandidates(capability, allowed);
 
