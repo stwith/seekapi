@@ -24,12 +24,12 @@ It exists so an agent or reviewer can start the system, prepare data, run smoke 
 
 - `.github/workflows/ci.yml` mirrors the local delivery gate on pushes and pull requests.
 - `.github/workflows/pr-review.yml` posts or updates a sticky pull request comment with changed files and current check status.
-- `.github/workflows/ai-pr-review.yml` can post an AI-assisted review summary when `OPENAI_API_KEY` is configured in repository Actions secrets.
+- `.github/workflows/ai-pr-review.yml` posts a sticky Codex review guidance comment and reminds contributors to trigger review with `@codex review` or repository-level Codex auto-review. [AC3][AC4][AC5]
 - `.github/workflows/auto-merge.yml` can squash-merge PRs labeled `automerge` once `validate`, `comment`, and `ai-review` are green. [AC2][AC3]
 - `bash scripts/open-pr.sh` standardizes the local branch -> validate -> push -> PR flow and can add `automerge` on request. [AC1][AC3]
 - `bash scripts/claude-fix-pr.sh <pr-number>` renders the latest structured Codex review comment into a repair prompt for Claude. [AC1][AC3]
 - Local debugging still starts with `bash scripts/validate.sh`; GitHub Actions should confirm the same gate remotely.
-- GitHub workflows can react to PR events, but they do not make Codex itself "watch" the repo. Proactive Codex review requires a separate polling or webhook automation.
+- GitHub workflows can react to PR events, but the actual Codex review still comes from the GitHub/Codex integration rather than an Actions API key.
 
 ## Codex Review Comment Protocol
 

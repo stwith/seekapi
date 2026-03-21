@@ -30,3 +30,4 @@
 - latest Codex review comment marker: `<!-- seekapi-codex-review -->`
 - latest Codex review status: `READY` / `BLOCKED`
 - unresolved `BLOCKING:` items:
+- if review has not run yet, request it in GitHub with `@codex review`
