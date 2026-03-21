@@ -15,8 +15,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "pr:open": "bash scripts/open-pr.sh",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:generate": "node --env-file-if-exists=.env ./scripts/run-drizzle-kit.js generate",
+    "db:migrate": "node --env-file-if-exists=.env ./scripts/run-drizzle-kit.js migrate"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
