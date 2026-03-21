@@ -8,15 +8,15 @@ import { FlowRunner } from "../routes/flow-runner/FlowRunner.js";
 
 export function App() {
   const [adminKey, setAdminKey] = useState(
-    () => localStorage.getItem("seekapi_admin_key") ?? "",
+    () => sessionStorage.getItem("seekapi_admin_key") ?? "",
   );
 
   function handleSetAdminKey(key: string) {
     setAdminKey(key);
     if (key) {
-      localStorage.setItem("seekapi_admin_key", key);
+      sessionStorage.setItem("seekapi_admin_key", key);
     } else {
-      localStorage.removeItem("seekapi_admin_key");
+      sessionStorage.removeItem("seekapi_admin_key");
     }
   }
 

@@ -10,7 +10,7 @@ import { App } from "../app/App.js";
 
 describe("App shell [AC1]", () => {
   beforeEach(() => {
-    localStorage.clear();
+    sessionStorage.clear();
   });
 
   it("renders the login gate when no admin key is set", () => {
@@ -20,7 +20,7 @@ describe("App shell [AC1]", () => {
   });
 
   it("renders the nav sidebar when admin key is stored", () => {
-    localStorage.setItem("seekapi_admin_key", "test_key");
+    sessionStorage.setItem("seekapi_admin_key", "test_key");
     render(<App />);
     const nav = screen.getByTestId("nav-sidebar");
     expect(nav).toBeInTheDocument();

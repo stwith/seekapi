@@ -28,7 +28,11 @@ else
 fi
 
 # Frontend validation [Phase 3 AC6]
-if [ -f frontend/package.json ] && [ -d frontend/node_modules ]; then
+if [ -f frontend/package.json ]; then
+  if [ ! -d frontend/node_modules ]; then
+    echo "[validate] frontend/node_modules missing, installing frontend deps"
+    pnpm --dir frontend install --frozen-lockfile
+  fi
   echo "[validate] frontend lint"
   pnpm --dir frontend run lint
   echo "[validate] frontend typecheck"
@@ -38,7 +42,7 @@ if [ -f frontend/package.json ] && [ -d frontend/node_modules ]; then
   echo "[validate] frontend build"
   pnpm --dir frontend run build
 else
-  echo "[validate] frontend/node_modules missing, skipping frontend checks"
+  echo "[validate] frontend/package.json not found, skipping frontend checks"
 fi
 
 echo "[validate] architecture checks"
