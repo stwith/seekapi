@@ -21,7 +21,9 @@ echo "[smoke] building app"
 npm run build --silent
 
 echo "[smoke] starting server on port $SMOKE_PORT"
-PORT=$SMOKE_PORT node dist/app/server.js &
+# ENCRYPTION_KEY required by server.ts — use a deterministic test key for smoke
+ENCRYPTION_KEY="${ENCRYPTION_KEY:-$(printf '0%.0s' {1..64})}" \
+  PORT=$SMOKE_PORT node dist/app/server.js &
 SERVER_PID=$!
 
 cleanup() {

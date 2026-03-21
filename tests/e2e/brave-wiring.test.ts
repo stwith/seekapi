@@ -1,10 +1,10 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { buildApp } from "../../src/app/build-app.js";
 import type { FastifyInstance } from "fastify";
 import { mockBraveFetch } from "../helpers/mock-brave.js";
+import { buildTestApp } from "../helpers/build-test-app.js";
+import { TEST_BRAVE_CREDENTIAL } from "../helpers/seed-test-repos.js";
 
 const AUTH_HEADER = { authorization: "Bearer sk_test_seekapi_demo_key_001" };
-const TEST_BRAVE_KEY = "test_brave_api_key_for_e2e";
 
 /**
  * End-to-end wiring test: auth → project context → credential lookup →
@@ -15,23 +15,15 @@ const TEST_BRAVE_KEY = "test_brave_api_key_for_e2e";
 describe("Brave adapter wiring (e2e)", () => {
   let app: FastifyInstance;
   let restoreFetch: () => void;
-  let originalBraveKey: string | undefined;
 
   beforeEach(async () => {
-    originalBraveKey = process.env["BRAVE_API_KEY"];
-    process.env["BRAVE_API_KEY"] = TEST_BRAVE_KEY;
     restoreFetch = mockBraveFetch();
-    app = await buildApp({ logger: false });
+    app = await buildTestApp({ braveApiKey: TEST_BRAVE_CREDENTIAL });
     await app.ready();
   });
 
   afterEach(() => {
     restoreFetch();
-    if (originalBraveKey === undefined) {
-      delete process.env["BRAVE_API_KEY"];
-    } else {
-      process.env["BRAVE_API_KEY"] = originalBraveKey;
-    }
   });
 
   test("POST /v1/search/web returns provider=brave with items (not stub)", async () => {
@@ -93,7 +85,7 @@ describe("Brave adapter wiring (e2e)", () => {
 
     // Override the mock to capture headers
     restoreFetch();
-    globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = (_input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.headers) {
         const h = init.headers as Record<string, string>;
         capturedHeaders = { ...h };
@@ -115,7 +107,7 @@ describe("Brave adapter wiring (e2e)", () => {
       });
 
       // Brave client sends the credential as X-Subscription-Token
-      expect(capturedHeaders["X-Subscription-Token"]).toBe(TEST_BRAVE_KEY);
+      expect(capturedHeaders["X-Subscription-Token"]).toBe(TEST_BRAVE_CREDENTIAL);
     } finally {
       globalThis.fetch = originalFetch;
     }

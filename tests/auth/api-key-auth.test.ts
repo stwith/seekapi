@@ -1,8 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { buildApp } from "../../src/app/build-app.js";
 import type { FastifyInstance } from "fastify";
 import { mockBraveFetch } from "../helpers/mock-brave.js";
+import { buildTestApp } from "../helpers/build-test-app.js";
 import { registerAuthPreHandler } from "../../src/modules/auth/http/pre-handler.js";
+import { AuthService, hashKey } from "../../src/modules/auth/service/auth-service.js";
+import { ProjectService } from "../../src/modules/projects/service/project-service.js";
+import { InMemoryApiKeyRepository } from "../../src/infra/db/repositories/api-key-repository.js";
+import { InMemoryProjectRepository } from "../../src/infra/db/repositories/project-repository.js";
 import Fastify from "fastify";
 
 describe("API key authentication", () => {
@@ -11,7 +15,7 @@ describe("API key authentication", () => {
 
   beforeEach(async () => {
     restoreFetch = mockBraveFetch();
-    app = await buildApp({ logger: false });
+    app = await buildTestApp();
     await app.ready();
   });
 
@@ -129,11 +133,14 @@ describe("Rate-limit backend failure", () => {
   test("request succeeds when rateLimitService.check() throws", async () => {
     const app = Fastify({ logger: false });
 
+    const authService = createTestAuthService();
+
     const failingRateLimitService = {
       check: () => Promise.reject(new Error("Redis connection refused")),
     };
 
     await registerAuthPreHandler(app, {
+      authService,
       rateLimitService: failingRateLimitService as never,
     });
 
@@ -156,4 +163,26 @@ describe("Rate-limit backend failure", () => {
 /** Return the well-known test API key used by the in-memory auth store. */
 function getTestApiKey(): string {
   return "sk_test_seekapi_demo_key_001";
+}
+
+/** Create a test AuthService with in-memory repositories. */
+function createTestAuthService(): AuthService {
+  const apiKeyRepo = new InMemoryApiKeyRepository([
+    {
+      id: "key_demo_001",
+      projectId: "proj_demo_001",
+      hashedKey: hashKey(getTestApiKey()),
+      status: "active",
+    },
+  ]);
+  const projectRepo = new InMemoryProjectRepository();
+  projectRepo.seed({
+    project: { id: "proj_demo_001", name: "Demo Project", status: "active" },
+    bindings: [
+      { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+    ],
+    defaultProvider: "brave",
+  });
+  const projectService = new ProjectService({ projectRepository: projectRepo });
+  return new AuthService({ apiKeyRepository: apiKeyRepo, projectService });
 }

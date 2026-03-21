@@ -1,45 +1,35 @@
 import { createHash } from "node:crypto";
 import type { ProjectContext } from "../../projects/service/project-service.js";
-import { ProjectService } from "../../projects/service/project-service.js";
-
-/**
- * API key record stored in the auth layer.
- * Full persistence comes in Task 5; this task uses an in-memory store.
- */
-interface ApiKeyRecord {
-  id: string;
-  keyHash: string;
-  projectId: string;
-}
+import type { ProjectService } from "../../projects/service/project-service.js";
+import type { ApiKeyRepository } from "../../../infra/db/repositories/api-key-repository.js";
 
 /** SHA-256 hash a raw API key for comparison. */
-function hashKey(raw: string): string {
+export function hashKey(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
-/** Well-known test key — seeded for development and testing. */
-const TEST_KEY = "sk_test_seekapi_demo_key_001";
-
-/** In-memory key store — replaced by DB repository in Task 5. */
-const KEYS: ApiKeyRecord[] = [
-  { id: "key_demo_001", keyHash: hashKey(TEST_KEY), projectId: "proj_demo_001" },
-];
+export interface AuthServiceDeps {
+  apiKeyRepository: ApiKeyRepository;
+  projectService: ProjectService;
+}
 
 export class AuthService {
-  private readonly projectService: ProjectService;
+  private readonly deps: AuthServiceDeps;
 
-  constructor(projectService?: ProjectService) {
-    this.projectService = projectService ?? new ProjectService();
+  constructor(deps: AuthServiceDeps) {
+    this.deps = deps;
   }
 
   /**
-   * Authenticate a raw API key.
+   * Authenticate a raw API key. [AC1][AC2]
+   * Resolves the key hash through the repository, then delegates
+   * to ProjectService for project context resolution.
    * Returns the resolved project context or undefined if invalid.
    */
-  authenticate(rawKey: string): ProjectContext | undefined {
+  async authenticate(rawKey: string): Promise<ProjectContext | undefined> {
     const hash = hashKey(rawKey);
-    const record = KEYS.find((k) => k.keyHash === hash);
+    const record = await this.deps.apiKeyRepository.findByHash(hash);
     if (!record) return undefined;
-    return this.projectService.resolve(record.projectId, record.id);
+    return this.deps.projectService.resolve(record.projectId, record.id);
   }
 }

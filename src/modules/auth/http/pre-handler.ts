@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { AuthService } from "../service/auth-service.js";
+import type { AuthService } from "../service/auth-service.js";
 import type { RateLimitService } from "../service/rate-limit-service.js";
 import type { ProjectContext } from "../../projects/service/project-service.js";
 
@@ -14,6 +14,7 @@ declare module "fastify" {
 }
 
 export interface AuthPreHandlerDeps {
+  authService: AuthService;
   rateLimitService?: RateLimitService;
 }
 
@@ -23,9 +24,9 @@ export interface AuthPreHandlerDeps {
  */
 export async function registerAuthPreHandler(
   app: FastifyInstance,
-  deps?: AuthPreHandlerDeps,
+  deps: AuthPreHandlerDeps,
 ): Promise<void> {
-  const authService = new AuthService();
+  const { authService } = deps;
 
   app.addHook(
     "preHandler",
@@ -41,7 +42,7 @@ export async function registerAuthPreHandler(
       }
 
       const token = header.slice("bearer ".length);
-      const project = authService.authenticate(token);
+      const project = await authService.authenticate(token);
       if (!project) {
         return reply.status(401).send({
           error: "UNAUTHORIZED",
@@ -52,7 +53,7 @@ export async function registerAuthPreHandler(
       // Rate limiting — check after auth so we know the project.
       // If the rate-limit backend (Redis) is unreachable, allow the request
       // through rather than turning every call into a 500.
-      if (deps?.rateLimitService) {
+      if (deps.rateLimitService) {
         try {
           const limit = await deps.rateLimitService.check(project.projectId);
           reply.header("x-ratelimit-limit", String(limit.limit));
