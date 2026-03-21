@@ -4,8 +4,8 @@ name: Auto Merge
 on:
   pull_request_target:
     types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review, converted_to_draft]
-  pull_request_review_thread:
-    types: [resolved]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
   issue_comment:
     types: [created, edited]
   workflow_run:
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'pull_request_target' ||
-      github.event_name == 'pull_request_review_thread' ||
+      github.event_name == 'pull_request_review' ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request) ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request') ||
       github.event_name == 'workflow_dispatch' ||
@@ -47,7 +47,7 @@ jobs:
                 return [{ number: context.payload.issue.number }];
               }
 
-              if (context.eventName === "pull_request_review_thread") {
+              if (context.eventName === "pull_request_review") {
                 return [context.payload.pull_request];
               }
 
