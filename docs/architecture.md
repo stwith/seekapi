@@ -11,6 +11,7 @@ Primary stack:
 - Fastify
 - PostgreSQL
 - Redis
+- React + Vite for the operator console when Phase 3 begins
 
 Package manager: **pnpm** (not npm or yarn). All scripts, CI, and documentation use `pnpm`.
 
@@ -20,6 +21,8 @@ Top-level responsibilities:
 
 - `app/`
   composition and bootstrapping
+- `frontend/`
+  operator-facing console that consumes HTTP boundaries only
 - `modules/auth`
   downstream API key auth and request context
 - `modules/projects`
@@ -50,6 +53,7 @@ Allowed:
 - service -> provider registry / provider adapter
 - app -> modules
 - modules -> infra
+- frontend -> HTTP API boundaries
 
 Disallowed:
 
@@ -58,6 +62,8 @@ Disallowed:
 - provider adapter -> transport layer
 - provider adapter -> unrelated module internals
 - repository -> transport layer
+- frontend -> database or Redis
+- frontend -> provider-native APIs
 
 ## Validation Rules
 
@@ -110,6 +116,19 @@ The repository must preserve these harness controls:
 - `bash scripts/validate.sh` is the delivery gate
 - architecture checks must fail clearly on layer violations
 - smoke scripts must exist for the main runnable path
+- frontend validation must be added to the delivery gate once the operator console exists
+
+## Frontend Rules
+
+The operator console is an internal control-plane client, not a new product boundary.
+
+Requirements:
+
+- it consumes admin and canonical HTTP endpoints only
+- it must not bypass backend validation or repository boundaries
+- it must not expose raw provider secrets after submission
+- it may reveal raw downstream API keys only at creation time
+- it should remain operator-only until product rules explicitly expand beyond that
 
 ## Review Gates
 

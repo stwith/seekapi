@@ -15,6 +15,7 @@ The first supported mode is:
 - upstream BYOK credentials
 - Brave as the first provider
 - canonical endpoints for web, news, and image search
+- operator-facing admin console for internal management of the Brave-only distributor flow
 
 ## Product Boundary
 
@@ -25,10 +26,10 @@ The first supported mode is:
 - Project-scoped credentials and policies
 - Deterministic provider routing and fallback
 - Usage logs, audit logs, health, and basic rate limits
+- Operator-facing admin UI for internal control-plane management
 
 ### Out of Scope for MVP
 
-- Admin UI
 - User-facing billing
 - Model chat proxying
 - General browser automation
@@ -36,6 +37,8 @@ The first supported mode is:
 - Workflow orchestration
 - Multi-provider race execution
 - Non-search product surfaces
+- End-user self-serve dashboard
+- Tenant-facing login, registration, and profile management
 
 ## Capability Boundary
 
@@ -107,3 +110,10 @@ When introducing a new provider or new capability:
 2. Update [docs/architecture.md](/Users/cjs/Codes/seekapi/docs/architecture.md) if the layering or module rules change.
 3. Add or update a plan in [docs/plans/](/Users/cjs/Codes/seekapi/docs/plans).
 4. Update examples and validation scripts if new behavior changes the delivery gate.
+
+When introducing a new operator-facing product surface:
+
+1. Keep the canonical search API as the primary product boundary.
+2. Ensure the UI remains an operator console, not an end-user product surface, unless this document is updated again.
+3. Keep downstream auth model unchanged: clients still authenticate with SeekAPI keys, not UI sessions.
+4. Update [docs/architecture.md](/Users/cjs/Codes/seekapi/docs/architecture.md) if frontend boundaries or runtime packaging rules change.
