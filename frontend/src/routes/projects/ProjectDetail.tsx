@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../../lib/api.js";
 import type { ProjectDetail, CreateKeyResult } from "../../lib/types.js";
@@ -25,7 +25,7 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   const [revealedKey, setRevealedKey] = useState<CreateKeyResult | null>(null);
   const [mintingKey, setMintingKey] = useState(false);
 
-  async function loadDetail() {
+  const loadDetail = useCallback(async () => {
     if (!projectId) return;
     try {
       const d = await api.getProjectDetail(adminKey, projectId);
@@ -36,11 +36,11 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [adminKey, projectId]);
 
   useEffect(() => {
     void loadDetail();
-  }, [adminKey, projectId]);
+  }, [loadDetail]);
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p style={{ color: "red" }}>{error}</p>;

@@ -115,6 +115,20 @@ The Flow Runner covers:
 6. Disable Key B
 7. Verify Key B gets 401, Key A still succeeds
 
+### E2E Tests
+
+Browser-level E2E tests verify login, project creation, and detail page against real backend + frontend.
+
+```bash
+# One-time: install Chromium for Playwright
+pnpm --dir frontend run test:e2e:install
+
+# Run E2E tests (starts backend + frontend automatically)
+pnpm --dir frontend run test:e2e
+```
+
+E2E tests use an isolated in-memory backend on port 3044 and a frontend dev server on port 5174, so they do not conflict with a running dev instance.
+
 ## Scripts
 
 | Command              | Description                        |
@@ -130,6 +144,7 @@ The Flow Runner covers:
 | `pnpm --dir frontend run dev` | Start operator console     |
 | `pnpm --dir frontend test`    | Run frontend tests          |
 | `pnpm --dir frontend run build` | Build frontend for production |
+| `pnpm --dir frontend run test:e2e` | Run Playwright E2E tests |
 
 ## Environment Variables
 
