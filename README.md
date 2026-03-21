@@ -38,6 +38,55 @@ curl -X POST http://localhost:3000/v1/search/web \
 
 For the full walkthrough — environment setup, bootstrap flow, hitting every endpoint, manual Brave smoke checks, and running the delivery gate — see the [Local Dev Checklist](docs/plans/2026-03-20-local-dev-checklist.md).
 
+## Operator Bootstrap (Admin API)
+
+SeekAPI includes an admin API for managing projects, API keys, and Brave credentials without direct database access. Set `ADMIN_API_KEY` to enable it.
+
+> **Durability:** Without `DATABASE_URL`, all admin-created projects, keys, and credentials are stored in-memory and **lost on restart**. For production use, set `DATABASE_URL` to a PostgreSQL instance and run `pnpm run db:migrate` first.
+
+```bash
+# Production setup (durable)
+export DATABASE_URL=postgres://seekapi:seekapi@localhost:5432/seekapi
+export ADMIN_API_KEY=your_admin_secret
+export ENCRYPTION_KEY=$(openssl rand -hex 32)
+pnpm run db:migrate
+pnpm run dev
+```
+
+Create a project, attach a Brave credential, and mint downstream keys:
+
+```bash
+BASE=http://localhost:3000
+ADMIN="Authorization: Bearer $ADMIN_API_KEY"
+
+# 1. Create a project
+PROJECT_ID=$(curl -s -X POST $BASE/v1/admin/projects \
+  -H "Content-Type: application/json" -H "$ADMIN" \
+  -d '{"name":"My Project"}' | jq -r '.id')
+
+# 2. Attach your Brave API key
+curl -s -X POST $BASE/v1/admin/projects/$PROJECT_ID/credentials \
+  -H "Content-Type: application/json" -H "$ADMIN" \
+  -d '{"provider":"brave","secret":"BSA...your-key..."}'
+
+# 3. Enable Brave web search
+curl -s -X POST $BASE/v1/admin/projects/$PROJECT_ID/bindings \
+  -H "Content-Type: application/json" -H "$ADMIN" \
+  -d '{"provider":"brave","capability":"search.web"}'
+
+# 4. Mint a downstream API key
+API_KEY=$(curl -s -X POST $BASE/v1/admin/projects/$PROJECT_ID/keys \
+  -H "$ADMIN" | jq -r '.rawKey')
+
+# 5. Search with the new key
+curl -s -X POST $BASE/v1/search/web \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"query":"hello world"}'
+```
+
+Each downstream key is independently controllable (disable via `POST /v1/admin/keys/:id/disable`) and individually attributable in usage events and audit logs. See the [Local Dev Checklist](docs/plans/2026-03-20-local-dev-checklist.md) for the full admin workflow.
+
 ## Scripts
 
 | Command              | Description                        |
@@ -57,6 +106,7 @@ For the full walkthrough — environment setup, bootstrap flow, hitting every en
 |---|---|---|
 | `ENCRYPTION_KEY` | **Yes** | 32-byte hex key for credential encryption at rest |
 | `BRAVE_API_KEY` | For search | Brave Search API key (BYOK) |
+| `ADMIN_API_KEY` | For admin | Enables operator management endpoints (`/v1/admin/*`) |
 | `DATABASE_URL` | No | PostgreSQL for durable persistence (usage, audit, health) |
 | `REDIS_URL` | No | Redis for durable rate limiting |
 | `PORT` | No | Server port (default: 3000) |

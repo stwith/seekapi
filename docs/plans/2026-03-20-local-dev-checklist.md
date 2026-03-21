@@ -32,6 +32,7 @@ The `pnpm run dev`, `pnpm start`, `pnpm run db:generate`, and `pnpm run db:migra
 | `HOST` | No | Bind address | `0.0.0.0` |
 | `DATABASE_URL` | No | PostgreSQL connection string (enables durable persistence for usage events, audit logs, health snapshots) | in-memory |
 | `REDIS_URL` | No | Redis connection string (enables durable rate limiting) | in-memory |
+| `ADMIN_API_KEY` | No | Enables admin management endpoints (`/v1/admin/*`) | — |
 | `SEED_API_KEY` | No | Downstream API key for the seed project | `sk_test_seekapi_demo_key_001` |
 | `SEED_PROJECT_ID` | No | ID of the seed project | `proj_demo_001` |
 | `SEED_PROJECT_NAME` | No | Display name for the seed project | `Demo Project` |
@@ -216,7 +217,174 @@ done | sort | uniq -c
 # Expect: 100 × "200", then "429"s
 ```
 
-## 10. Troubleshooting
+## 10. Operator Bootstrap via Admin API
+
+The admin API lets operators manage projects, credentials, and keys without direct database access.
+
+> **Durability warning:** Without `DATABASE_URL`, admin-created projects, keys, and credentials are stored in-memory and **lost on process restart**. For production use, configure PostgreSQL and run migrations before bootstrapping.
+
+### Prerequisites
+
+For **production / durable** setup:
+
+```bash
+# Add to your .env
+DATABASE_URL=postgres://seekapi:seekapi@localhost:5432/seekapi
+ADMIN_API_KEY=your_admin_secret_here
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+```
+
+```bash
+# Start PostgreSQL (if not already running)
+docker run -d --name seekapi-pg -e POSTGRES_USER=seekapi -e POSTGRES_PASSWORD=seekapi -e POSTGRES_DB=seekapi -p 5432:5432 postgres:16
+
+# Run migrations
+pnpm run db:migrate
+```
+
+For **temporary demo** (data lost on restart):
+
+```bash
+ADMIN_API_KEY=your_admin_secret_here
+ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
+```
+
+Start the server with `pnpm run dev`.
+
+### Step 1: Create a project
+
+```bash
+curl -s -X POST http://localhost:3000/v1/admin/projects \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -d '{"name":"Acme Corp"}' | jq .
+# → {"id":"<uuid>","name":"Acme Corp","status":"active"}
+```
+
+Save the project `id` for subsequent steps:
+
+```bash
+PROJECT_ID=<uuid-from-above>
+```
+
+### Step 2: Attach a Brave credential
+
+```bash
+curl -s -X POST http://localhost:3000/v1/admin/projects/$PROJECT_ID/credentials \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -d '{"provider":"brave","secret":"BSA...your-brave-key..."}' | jq .
+# → {"id":"<credential-uuid>"}
+```
+
+The credential is encrypted at rest. Only `brave` is accepted as a provider in the current phase.
+
+### Step 3: Configure capability bindings
+
+Enable the Brave capabilities you want the project to use:
+
+```bash
+# Web search
+curl -s -X POST http://localhost:3000/v1/admin/projects/$PROJECT_ID/bindings \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -d '{"provider":"brave","capability":"search.web"}' | jq .
+
+# News search
+curl -s -X POST http://localhost:3000/v1/admin/projects/$PROJECT_ID/bindings \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -d '{"provider":"brave","capability":"search.news"}' | jq .
+
+# Image search
+curl -s -X POST http://localhost:3000/v1/admin/projects/$PROJECT_ID/bindings \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -d '{"provider":"brave","capability":"search.images"}' | jq .
+```
+
+Allowed capabilities: `search.web`, `search.news`, `search.images`.
+
+### Step 4: Mint downstream API keys
+
+Create keys for each user or integration:
+
+```bash
+# Key for User A
+curl -s -X POST http://localhost:3000/v1/admin/projects/$PROJECT_ID/keys \
+  -H "Authorization: Bearer $ADMIN_API_KEY" | jq .
+# → {"id":"<key-uuid>","projectId":"<project-uuid>","rawKey":"sk_..."}
+
+# Key for User B
+curl -s -X POST http://localhost:3000/v1/admin/projects/$PROJECT_ID/keys \
+  -H "Authorization: Bearer $ADMIN_API_KEY" | jq .
+```
+
+**Important:** The `rawKey` is only returned once. Store it securely.
+
+### Step 5: Verify search works
+
+```bash
+API_KEY=sk_...  # rawKey from step 4
+
+curl -s -X POST http://localhost:3000/v1/search/web \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"query":"hello world"}' | jq '.items | length'
+# Expect: > 0
+```
+
+### Step 6: Verify per-key control
+
+Disable a key and confirm the sibling key still works:
+
+```bash
+KEY_B_ID=<key-uuid-from-step-4>
+
+# Disable key B
+curl -s -X POST http://localhost:3000/v1/admin/keys/$KEY_B_ID/disable \
+  -H "Authorization: Bearer $ADMIN_API_KEY" | jq .
+# → {"status":"disabled"}
+
+# Key B should now return 401
+curl -s -o /dev/null -w "%{http_code}" \
+  -H "Authorization: Bearer $KEY_B_RAW" \
+  http://localhost:3000/v1/health/providers
+# → 401
+
+# Key A should still work
+curl -s -o /dev/null -w "%{http_code}" \
+  -H "Authorization: Bearer $KEY_A_RAW" \
+  http://localhost:3000/v1/health/providers
+# → 200
+```
+
+### Step 7: Rotate a Brave credential
+
+To rotate the upstream Brave key, post a new credential. The previous one is automatically revoked:
+
+```bash
+curl -s -X POST http://localhost:3000/v1/admin/projects/$PROJECT_ID/credentials \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -d '{"provider":"brave","secret":"BSA...new-brave-key..."}' | jq .
+```
+
+All downstream keys continue working — they resolve the new credential automatically.
+
+### Admin API Reference
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/v1/admin/projects` | Create project (`{"name":"..."}`) |
+| POST | `/v1/admin/projects/:id/keys` | Mint downstream API key |
+| POST | `/v1/admin/keys/:id/disable` | Disable a downstream key |
+| POST | `/v1/admin/projects/:id/credentials` | Attach/rotate Brave credential |
+| POST | `/v1/admin/projects/:id/bindings` | Configure capability binding |
+
+All admin endpoints require `Authorization: Bearer $ADMIN_API_KEY`.
+
+## 11. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
