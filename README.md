@@ -67,6 +67,7 @@ For the Claude repair loop, use the structured Codex review comment protocol. [A
 
 - Codex reviewer should keep one PR comment marked `<!-- seekapi-codex-review -->`
 - That comment must include `STATUS: READY` or `STATUS: BLOCKED`
+- Before posting `STATUS: READY`, resolve the fixed review threads first so the merge gate can pass immediately
 - Claude should consume the latest blocked review with:
 
 ```bash
