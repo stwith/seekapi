@@ -87,6 +87,34 @@ curl -s -X POST $BASE/v1/search/web \
 
 Each downstream key is independently controllable (disable via `POST /v1/admin/keys/:id/disable`) and individually attributable in usage events and audit logs. See the [Local Dev Checklist](docs/plans/2026-03-20-local-dev-checklist.md) for the full admin workflow.
 
+## Operator Console
+
+SeekAPI includes an operator-facing web console for managing the Brave-only control plane without curl or direct API calls.
+
+```bash
+# Install frontend dependencies
+pnpm --dir frontend install
+
+# Start the console (dev mode)
+pnpm --dir frontend run dev
+```
+
+The console runs at `http://localhost:5173` and proxies API requests to `http://localhost:3000`. Enter your `ADMIN_API_KEY` to connect.
+
+Console pages:
+- **Overview** — server status and project summary
+- **Projects** — create, list, and inspect projects (credential, bindings, keys)
+- **Flow Runner** — execute the full Phase 2.5 workflow in 10 guided steps
+
+The Flow Runner covers:
+1. Create project
+2. Attach Brave credential
+3. Enable `search.web`
+4. Mint Key A / Key B
+5. Search with both keys
+6. Disable Key B
+7. Verify Key B gets 401, Key A still succeeds
+
 ## Scripts
 
 | Command              | Description                        |
@@ -99,6 +127,9 @@ Each downstream key is independently controllable (disable via `POST /v1/admin/k
 | `pnpm run typecheck`  | Type-check without emitting        |
 | `pnpm run db:generate`| Generate Drizzle migrations        |
 | `pnpm run db:migrate` | Apply Drizzle migrations            |
+| `pnpm --dir frontend run dev` | Start operator console     |
+| `pnpm --dir frontend test`    | Run frontend tests          |
+| `pnpm --dir frontend run build` | Build frontend for production |
 
 ## Environment Variables
 

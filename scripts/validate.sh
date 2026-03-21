@@ -27,6 +27,20 @@ else
   echo "[validate] package.json or node_modules missing, skipping lint/typecheck/test/build"
 fi
 
+# Frontend validation [Phase 3 AC6]
+if [ -f frontend/package.json ] && [ -d frontend/node_modules ]; then
+  echo "[validate] frontend lint"
+  pnpm --dir frontend run lint
+  echo "[validate] frontend typecheck"
+  pnpm --dir frontend run typecheck
+  echo "[validate] frontend test"
+  pnpm --dir frontend test
+  echo "[validate] frontend build"
+  pnpm --dir frontend run build
+else
+  echo "[validate] frontend/node_modules missing, skipping frontend checks"
+fi
+
 echo "[validate] architecture checks"
 bash scripts/check-architecture.sh
 
