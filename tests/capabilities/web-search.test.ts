@@ -1,15 +1,22 @@
-import { describe, test, expect, beforeEach } from "vitest";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { buildApp } from "../../src/app/build-app.js";
 import type { FastifyInstance } from "fastify";
+import { mockBraveFetch } from "../helpers/mock-brave.js";
 
 const AUTH_HEADER = { authorization: "Bearer sk_test_seekapi_demo_key_001" };
 
 describe("POST /v1/search/web", () => {
   let app: FastifyInstance;
+  let restoreFetch: () => void;
 
   beforeEach(async () => {
+    restoreFetch = mockBraveFetch();
     app = await buildApp({ logger: false });
     await app.ready();
+  });
+
+  afterEach(() => {
+    restoreFetch();
   });
 
   test("valid request returns 200 with canonical response shape", async () => {

@@ -1,13 +1,20 @@
-import { describe, test, expect, beforeEach } from "vitest";
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { buildApp } from "../../src/app/build-app.js";
 import type { FastifyInstance } from "fastify";
+import { mockBraveFetch } from "../helpers/mock-brave.js";
 
 describe("API key authentication", () => {
   let app: FastifyInstance;
+  let restoreFetch: () => void;
 
   beforeEach(async () => {
+    restoreFetch = mockBraveFetch();
     app = await buildApp({ logger: false });
     await app.ready();
+  });
+
+  afterEach(() => {
+    restoreFetch();
   });
 
   test("missing Authorization header returns 401", async () => {
