@@ -13,6 +13,8 @@ import { RateLimitService } from "../../src/modules/auth/service/rate-limit-serv
 import { HealthService } from "../../src/modules/health/service/health-service.js";
 import { classifyError } from "../../src/modules/routing/service/error-classifier.js";
 import { ProviderError } from "../../src/providers/core/errors.js";
+import { buildApp } from "../../src/app/build-app.js";
+import { seedTestRepositories, TEST_API_KEY } from "../helpers/seed-test-repos.js";
 import type { RedisClient } from "../../src/infra/redis/client.js";
 import type { ProviderRegistry } from "../../src/providers/core/registry.js";
 
@@ -252,5 +254,77 @@ describe("classifyError deterministic classification [AC4]", () => {
     const result = classifyError(err);
     expect(result.category).toBe("unknown");
     expect(result.retryable).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Integration: health credential strategy via buildApp composition  */
+/* ------------------------------------------------------------------ */
+
+describe("Health probe credential strategy [AC4]", () => {
+  it("health probe uses real credential when healthProbeProjectId is set", async () => {
+    // Mock fetch to capture whether Brave actually gets probed with a credential
+    const originalFetch = globalThis.fetch;
+    let probeHeaders: Record<string, string> = {};
+    globalThis.fetch = async (url: unknown, init?: RequestInit) => {
+      // Capture the auth header from the health probe request
+      const headers = init?.headers as Record<string, string> | undefined;
+      if (headers?.["X-Subscription-Token"]) {
+        probeHeaders = { ...headers };
+      }
+      return new Response(JSON.stringify({ web: { results: [] } }), { status: 200 });
+    };
+
+    try {
+      const repos = seedTestRepositories();
+      const app = await buildApp({
+        logger: false,
+        ...repos,
+        healthProbeProjectId: "proj_demo_001", // seed project has brave credential
+      });
+      await app.ready();
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/v1/health/providers",
+        headers: { authorization: `Bearer ${TEST_API_KEY}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.providers).toHaveLength(1);
+      // With a real credential, probe should succeed → "healthy" (not "unavailable")
+      expect(body.providers[0].provider).toBe("brave");
+      expect(body.providers[0].status).toBe("healthy");
+      // Verify credential was actually sent to the upstream
+      expect(probeHeaders["X-Subscription-Token"]).toBeDefined();
+
+      await app.close();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("health probe returns unavailable without healthProbeProjectId", async () => {
+    const repos = seedTestRepositories();
+    const app = await buildApp({
+      logger: false,
+      ...repos,
+      // healthProbeProjectId not set → no credential → unavailable
+    });
+    await app.ready();
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/health/providers",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.providers).toHaveLength(1);
+    expect(body.providers[0].status).toBe("unavailable");
+
+    await app.close();
   });
 });
