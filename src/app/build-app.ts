@@ -39,6 +39,12 @@ export interface AppOptions {
   healthSnapshotRepository: HealthSnapshotRepository;
   /** Hex-encoded 32-byte key for credential encryption. Required. */
   encryptionKey: string;
+  /**
+   * Project ID whose credentials are used for provider health probes.
+   * When set, health probes use real upstream credentials so
+   * `/v1/health/providers` reports actual provider readiness. [AC4]
+   */
+  healthProbeProjectId?: string;
 }
 
 /**
@@ -77,18 +83,21 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const registry = new ProviderRegistry();
   registry.register(new BraveAdapter());
 
-  // Health service — resolves credentials from the caller's project context,
-  // not a hardcoded demo project. Uses the authenticated request's project
-  // for provider health when available, falls back to probing without
-  // credentials (adapter-level decision).
+  // Health service — uses a dedicated health-probe project's credentials
+  // to perform real upstream probes. When healthProbeProjectId is set,
+  // probes use real credentials so /v1/health/providers reports actual
+  // provider readiness. Without it, adapters fall back to returning
+  // "unavailable" (no credential to probe with). [AC4]
+  const healthProbeProjectId = opts.healthProbeProjectId;
   const healthService = new HealthService({
     registry,
-    resolveHealthCredential: async (_provider) => {
-      // Health probes do not have a request-scoped project context.
-      // Return undefined so adapters fall back to unauthenticated probes
-      // or skip the check. A proper health credential strategy (e.g. a
-      // dedicated health-probe project) belongs in Task 15.
-      return undefined;
+    resolveHealthCredential: async (provider) => {
+      if (!healthProbeProjectId) return undefined;
+      try {
+        return await credentialService.resolve(healthProbeProjectId, provider);
+      } catch {
+        return undefined; // no credential for this provider — probe without
+      }
     },
     snapshotSink: healthSnapshotRepository,
   });

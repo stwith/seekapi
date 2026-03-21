@@ -93,7 +93,14 @@ async function main(): Promise<void> {
   const host = process.env["HOST"] ?? "0.0.0.0";
 
   const repos = bootstrapFromEnv();
-  const app = await buildApp(repos);
+  const app = await buildApp({
+    ...repos,
+    // Use the seed project's credentials for health probes when BRAVE_API_KEY
+    // is set — this gives /v1/health/providers real Brave readiness data. [AC4]
+    healthProbeProjectId: process.env["BRAVE_API_KEY"]
+      ? (process.env["SEED_PROJECT_ID"] ?? "proj_demo_001")
+      : undefined,
+  });
 
   try {
     await app.listen({ port, host });
