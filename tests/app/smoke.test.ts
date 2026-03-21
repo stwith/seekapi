@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { buildApp } from "../../src/app/build-app.js";
+import { buildTestApp } from "../helpers/build-test-app.js";
 import { mockBraveFetch } from "../helpers/mock-brave.js";
 
 /**
@@ -14,7 +14,7 @@ describe("Application smoke tests", () => {
 
   beforeAll(async () => {
     restoreFetch = mockBraveFetch();
-    app = await buildApp({ logger: false });
+    app = await buildTestApp();
     await app.ready();
   });
 

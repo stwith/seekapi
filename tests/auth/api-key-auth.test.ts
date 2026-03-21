@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { buildApp } from "../../src/app/build-app.js";
 import type { FastifyInstance } from "fastify";
 import { mockBraveFetch } from "../helpers/mock-brave.js";
+import { buildTestApp } from "../helpers/build-test-app.js";
 import { registerAuthPreHandler } from "../../src/modules/auth/http/pre-handler.js";
 import { AuthService, hashKey } from "../../src/modules/auth/service/auth-service.js";
 import { ProjectService } from "../../src/modules/projects/service/project-service.js";
@@ -15,7 +15,7 @@ describe("API key authentication", () => {
 
   beforeEach(async () => {
     restoreFetch = mockBraveFetch();
-    app = await buildApp({ logger: false });
+    app = await buildTestApp();
     await app.ready();
   });
 
