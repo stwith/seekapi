@@ -1,0 +1,150 @@
+/**
+ * Project list and detail page tests. [AC2][AC4]
+ *
+ * Verifies:
+ * - project list renders fetched projects
+ * - create-project form submits and refreshes list
+ * - project detail renders summary sections
+ */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { ProjectList } from "../routes/projects/ProjectList.js";
+import { ProjectDetailPage } from "../routes/projects/ProjectDetail.js";
+
+// Mock the API module
+vi.mock("../lib/api.js", () => ({
+  api: {
+    listProjects: vi.fn(),
+    createProject: vi.fn(),
+    getProjectDetail: vi.fn(),
+    upsertCredential: vi.fn(),
+    configureBinding: vi.fn(),
+    createApiKey: vi.fn(),
+    disableApiKey: vi.fn(),
+  },
+}));
+
+// Mock useParams for detail page
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom");
+  return {
+    ...actual,
+    useParams: () => ({ projectId: "proj-1" }),
+  };
+});
+
+import { api } from "../lib/api.js";
+const mockApi = api as unknown as {
+  listProjects: ReturnType<typeof vi.fn>;
+  createProject: ReturnType<typeof vi.fn>;
+  getProjectDetail: ReturnType<typeof vi.fn>;
+  upsertCredential: ReturnType<typeof vi.fn>;
+  configureBinding: ReturnType<typeof vi.fn>;
+  createApiKey: ReturnType<typeof vi.fn>;
+  disableApiKey: ReturnType<typeof vi.fn>;
+};
+
+describe("ProjectList [AC2]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders fetched projects", async () => {
+    mockApi.listProjects.mockResolvedValue([
+      { id: "proj-1", name: "Project One", status: "active" },
+      { id: "proj-2", name: "Project Two", status: "active" },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <ProjectList adminKey="test-key" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Project One")).toBeInTheDocument();
+      expect(screen.getByText("Project Two")).toBeInTheDocument();
+    });
+  });
+
+  it("submits create-project form and refreshes list", async () => {
+    mockApi.listProjects
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "proj-new", name: "New Project", status: "active" }]);
+    mockApi.createProject.mockResolvedValue({ id: "proj-new", name: "New Project", status: "active" });
+
+    render(
+      <MemoryRouter>
+        <ProjectList adminKey="test-key" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("No projects yet.")).toBeInTheDocument();
+    });
+
+    const input = screen.getByPlaceholderText("New project name");
+    fireEvent.change(input, { target: { value: "New Project" } });
+    fireEvent.click(screen.getByText("Create Project"));
+
+    await waitFor(() => {
+      expect(mockApi.createProject).toHaveBeenCalledWith("test-key", "New Project");
+      expect(screen.getByText("New Project")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("ProjectDetailPage [AC2]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders project detail with bindings, keys, and credential", async () => {
+    mockApi.getProjectDetail.mockResolvedValue({
+      project: { id: "proj-1", name: "Test Project", status: "active" },
+      bindings: [{ provider: "brave", capability: "search.web", enabled: true, priority: 0 }],
+      keys: [{ id: "key-1", projectId: "proj-1", status: "active" }],
+      credential: { id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" },
+    });
+
+    render(
+      <MemoryRouter>
+        <ProjectDetailPage adminKey="test-key" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Project")).toBeInTheDocument();
+      // Bindings section
+      const bindingsTable = screen.getByTestId("bindings-table");
+      expect(bindingsTable).toBeInTheDocument();
+      expect(bindingsTable.textContent).toContain("search.web");
+      // Keys section
+      expect(screen.getByTestId("keys-table")).toBeInTheDocument();
+      expect(screen.getByText("key-1")).toBeInTheDocument();
+      // Credential section — "brave" appears multiple times, check via heading
+      expect(screen.getByText("Brave Credential")).toBeInTheDocument();
+      expect(screen.getByText("cred-1")).toBeInTheDocument();
+    });
+  });
+
+  it("shows 'No credential attached' when none exists", async () => {
+    mockApi.getProjectDetail.mockResolvedValue({
+      project: { id: "proj-1", name: "Empty Project", status: "active" },
+      bindings: [],
+      keys: [],
+      credential: null,
+    });
+
+    render(
+      <MemoryRouter>
+        <ProjectDetailPage adminKey="test-key" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("No credential attached.")).toBeInTheDocument();
+    });
+  });
+});

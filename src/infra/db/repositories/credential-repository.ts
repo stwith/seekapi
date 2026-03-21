@@ -18,12 +18,21 @@ export interface CredentialRow {
   status: string;
 }
 
+export interface CredentialMeta {
+  id: string;
+  projectId: string;
+  provider: string;
+  status: string;
+}
+
 export interface CredentialRepository {
   /** Find the active credential for a project + provider pair. */
   findByProjectAndProvider(
     projectId: string,
     provider: string,
   ): Promise<CredentialRow | undefined>;
+  /** Find credential metadata for a project (no raw secret). [Phase 3 AC4] */
+  findMetaByProject?(projectId: string): Promise<CredentialMeta | undefined>;
   /** Upsert (attach or rotate) a credential for a project + provider. [AC3] */
   upsert?(row: CredentialRow): Promise<void>;
 }
@@ -48,6 +57,14 @@ export class InMemoryCredentialRepository implements CredentialRepository {
         c.provider === provider &&
         c.status === "active",
     );
+  }
+
+  async findMetaByProject(projectId: string): Promise<CredentialMeta | undefined> {
+    const cred = this.credentials.find(
+      (c) => c.projectId === projectId && c.status === "active",
+    );
+    if (!cred) return undefined;
+    return { id: cred.id, projectId: cred.projectId, provider: cred.provider, status: cred.status };
   }
 
   async upsert(row: CredentialRow): Promise<void> {
@@ -88,6 +105,25 @@ export class DrizzleCredentialRepository implements CredentialRepository {
         and(
           eq(providerCredentials.projectId, projectId),
           eq(providerCredentials.provider, provider),
+          eq(providerCredentials.status, "active"),
+        ),
+      )
+      .limit(1);
+    return rows[0];
+  }
+
+  async findMetaByProject(projectId: string): Promise<CredentialMeta | undefined> {
+    const rows = await this.db
+      .select({
+        id: providerCredentials.id,
+        projectId: providerCredentials.projectId,
+        provider: providerCredentials.provider,
+        status: providerCredentials.status,
+      })
+      .from(providerCredentials)
+      .where(
+        and(
+          eq(providerCredentials.projectId, projectId),
           eq(providerCredentials.status, "active"),
         ),
       )
