@@ -159,7 +159,7 @@ Each provider-specific slice should also include targeted adapter tests and rout
 
 ## Phase 4C: SerpAPI (full capability coverage)
 
-**Status:** Planned
+**Status:** In Progress
 
 **Why third:** SerpAPI is the provider that completes full MVP capability coverage across `search.web`, `search.news`, and `search.images`, which makes it the strongest final proof that the canonical model can scale horizontally.
 

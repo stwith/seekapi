@@ -11,6 +11,7 @@ import { ProviderRegistry } from "../providers/core/registry.js";
 import { BraveAdapter } from "../providers/brave/adapter.js";
 import { TavilyAdapter } from "../providers/tavily/adapter.js";
 import { KagiAdapter } from "../providers/kagi/adapter.js";
+import { SerpApiAdapter } from "../providers/serpapi/adapter.js";
 import { CredentialService } from "../modules/credentials/service/credential-service.js";
 import { UsageService } from "../modules/usage/service/usage-service.js";
 import { AuditService } from "../modules/audit/service/audit-service.js";
@@ -96,6 +97,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   registry.register(new BraveAdapter());
   registry.register(new TavilyAdapter());
   registry.register(new KagiAdapter());
+  registry.register(new SerpApiAdapter());
 
   // Health service — uses a dedicated health-probe project's credentials
   // to perform real upstream probes. When healthProbeProjectId is set,

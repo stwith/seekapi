@@ -32,7 +32,7 @@ describe("buildApp accepts any repository implementation [AC2]", () => {
       headers: { authorization: `Bearer ${TEST_API_KEY}` },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().providers).toHaveLength(3);
+    expect(res.json().providers).toHaveLength(4);
 
     const healthRes = await app.inject({
       method: "GET",
