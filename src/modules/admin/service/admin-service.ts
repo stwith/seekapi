@@ -155,12 +155,12 @@ export class AdminService {
     return this.deps.projectRepository.listAll();
   }
 
-  /** Get project detail with bindings, keys, and credential metadata. [Phase 3 AC4] */
+  /** Get project detail with bindings, keys, and credential metadata. [Phase 3 AC4][Phase 4D AC6] */
   async getProjectDetail(projectId: string): Promise<{
     project: ProjectRow;
     bindings: ProviderBindingRow[];
     keys: { id: string; projectId: string; status: string }[];
-    credential: CredentialMeta | null;
+    credentials: CredentialMeta[];
   }> {
     const found = await this.deps.projectRepository.findById(projectId);
     if (!found) {
@@ -179,11 +179,11 @@ export class AdminService {
         }))
       : [];
 
-    const credential = this.deps.credentialRepository.findMetaByProject
-      ? (await this.deps.credentialRepository.findMetaByProject(projectId)) ?? null
-      : null;
+    const credentials = this.deps.credentialRepository.findMetaByProject
+      ? await this.deps.credentialRepository.findMetaByProject(projectId)
+      : [];
 
-    return { project: found.project, bindings, keys, credential };
+    return { project: found.project, bindings, keys, credentials };
   }
 
   /** List keys for a project. [Phase 3 AC4] */
@@ -216,16 +216,16 @@ export class AdminService {
     return found.bindings;
   }
 
-  /** Get credential metadata for a project (no raw secret). [Phase 3 AC4] */
-  async getCredentialMeta(projectId: string): Promise<CredentialMeta | null> {
+  /** Get all credential metadata for a project (no raw secret). [Phase 3 AC4][Phase 4D AC6] */
+  async getCredentialMeta(projectId: string): Promise<CredentialMeta[]> {
     const found = await this.deps.projectRepository.findById(projectId);
     if (!found) {
       throw new AdminError("Project not found", "PROJECT_NOT_FOUND");
     }
     if (!this.deps.credentialRepository.findMetaByProject) {
-      return null;
+      return [];
     }
-    return (await this.deps.credentialRepository.findMetaByProject(projectId)) ?? null;
+    return this.deps.credentialRepository.findMetaByProject(projectId);
   }
 
   /** Configure a Brave capability binding for a project. [AC3] */

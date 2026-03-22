@@ -45,7 +45,7 @@ const baseDetail = {
   project: { id: "proj-1", name: "Test Project", status: "active" },
   bindings: [],
   keys: [],
-  credential: null,
+  credentials: [],
 };
 
 describe("Credential management [AC2]", () => {
@@ -64,7 +64,7 @@ describe("Credential management [AC2]", () => {
       .mockResolvedValueOnce({ ...baseDetail })
       .mockResolvedValueOnce({
         ...baseDetail,
-        credential: { id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" },
+        credentials: [{ id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" }],
       });
     mockApi.upsertCredential.mockResolvedValue({ id: "cred-1" });
 

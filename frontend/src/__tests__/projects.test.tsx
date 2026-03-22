@@ -112,7 +112,7 @@ describe("ProjectDetailPage [AC2]", () => {
       project: { id: "proj-1", name: "Test Project", status: "active" },
       bindings: [{ provider: "brave", capability: "search.web", enabled: true, priority: 0 }],
       keys: [{ id: "key-1", projectId: "proj-1", status: "active" }],
-      credential: { id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" },
+      credentials: [{ id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" }],
     });
 
     render(
@@ -141,7 +141,7 @@ describe("ProjectDetailPage [AC2]", () => {
       project: { id: "proj-1", name: "Empty Project", status: "active" },
       bindings: [],
       keys: [],
-      credential: null,
+      credentials: [],
     });
 
     render(

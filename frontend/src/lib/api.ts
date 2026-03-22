@@ -58,7 +58,7 @@ export interface ProjectDetail {
   project: Project;
   bindings: ProviderBinding[];
   keys: ApiKeyInfo[];
-  credential: CredentialMeta | null;
+  credentials: CredentialMeta[];
 }
 
 export interface ProviderBinding {
@@ -194,7 +194,7 @@ export const api = {
   },
 
   getCredentialMeta(adminKey: string, projectId: string) {
-    return request<CredentialMeta | null>(`/v1/admin/projects/${projectId}/credentials`, { adminKey });
+    return request<CredentialMeta[]>(`/v1/admin/projects/${projectId}/credentials`, { adminKey });
   },
 
   // Mutation endpoints (existing)

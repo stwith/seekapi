@@ -168,6 +168,32 @@ describe("ProjectDetail multi-provider [Task 53]", () => {
     });
   });
 
+  it("displays multiple provider credentials [Phase 4D AC6]", async () => {
+    mockApi.getProjectDetail.mockResolvedValue({
+      project: { id: "proj-1", name: "Multi Cred Project", status: "active" },
+      bindings: [],
+      keys: [],
+      credentials: [
+        { id: "cred-brave", projectId: "proj-1", provider: "brave", status: "active" },
+        { id: "cred-tavily", projectId: "proj-1", provider: "tavily", status: "active" },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/projects/proj-1"]}>
+        <Routes>
+          <Route path="/projects/:projectId" element={<ProjectDetailPage adminKey="test-key" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Provider Credentials")).toBeInTheDocument();
+      expect(screen.getByText("cred-brave")).toBeInTheDocument();
+      expect(screen.getByText("cred-tavily")).toBeInTheDocument();
+    });
+  });
+
   it("shows provider selector for credentials and bindings", async () => {
     mockApi.getProjectDetail.mockResolvedValue({
       project: { id: "proj-1", name: "Test Project", status: "active" },
@@ -176,7 +202,7 @@ describe("ProjectDetail multi-provider [Task 53]", () => {
         { provider: "serpapi", capability: "search.images", enabled: true, priority: 1 },
       ],
       keys: [],
-      credential: { id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" },
+      credentials: [{ id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" }],
     });
 
     render(

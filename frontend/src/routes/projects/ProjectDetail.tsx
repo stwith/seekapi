@@ -37,10 +37,7 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
       ]);
       setDetail(d);
       setProviders(provResult.providers);
-      // credential may be a single item or null; load full list
-      const creds: CredentialMeta[] = [];
-      if (d.credential) creds.push(d.credential);
-      setCredentials(creds);
+      setCredentials(d.credentials ?? []);
       if (provResult.providers.length > 0) {
         setSelectedProvider((prev) => prev || provResult.providers[0]!.id);
         setBindProvider((prev) => prev || provResult.providers[0]!.id);
