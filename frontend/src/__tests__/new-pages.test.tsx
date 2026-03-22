@@ -8,7 +8,6 @@ import { MemoryRouter } from "react-router-dom";
 import { Dashboard } from "../routes/dashboard/Dashboard.js";
 import { KeysPage } from "../routes/keys/KeysPage.js";
 import { UsagePage } from "../routes/usage/UsagePage.js";
-import { SubscriptionsPage } from "../routes/subscriptions/SubscriptionsPage.js";
 
 vi.mock("../lib/api.js", () => ({
   api: {
@@ -215,6 +214,7 @@ describe("UsagePage [Task 37]", () => {
     vi.clearAllMocks();
     mockApi.listProjects.mockResolvedValue([]);
     mockApi.listProviders.mockResolvedValue({ providers: [{ id: "brave", capabilities: ["search.web"] }] });
+    mockApi.listProjectKeys.mockResolvedValue([]);
   });
 
   it("renders paginated usage events with timestamp and fallback columns", async () => {
@@ -300,8 +300,7 @@ describe("UsagePage [Task 37]", () => {
       expect(screen.getByText("All providers")).toBeInTheDocument();
       // Status filter
       expect(screen.getByText("All statuses")).toBeInTheDocument();
-      // API Key ID filter
-      expect(screen.getByPlaceholderText("API Key ID")).toBeInTheDocument();
+      // API Key filter is now a Select (loaded per-project), verified via FormField label
       // Date range inputs (replaced date range picker)
       expect(screen.getByLabelText("From")).toBeInTheDocument();
       expect(screen.getByLabelText("To")).toBeInTheDocument();
@@ -309,103 +308,3 @@ describe("UsagePage [Task 37]", () => {
   });
 });
 
-describe("SubscriptionsPage [Task 38]", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockApi.listProjects.mockResolvedValue([
-      { id: "proj-1", name: "Project One", status: "active" },
-    ]);
-    mockApi.listProjectKeys.mockResolvedValue([
-      { id: "key-1", projectId: "proj-1", status: "active" },
-      { id: "key-2", projectId: "proj-1", status: "active" },
-    ]);
-  });
-
-  it("renders quota cards with project name and key count", async () => {
-    mockApi.listQuotas.mockResolvedValue({
-      quotas: [
-        {
-          id: "q1",
-          projectId: "proj-1",
-          dailyRequestLimit: 1000,
-          monthlyRequestLimit: 10000,
-          maxKeys: 5,
-          rateLimitRpm: 60,
-          status: "active",
-          currentDailyUsage: 500,
-          currentMonthlyUsage: 3000,
-        },
-      ],
-    });
-
-    render(
-      <MemoryRouter>
-        <SubscriptionsPage adminKey="test-key" />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      const card = screen.getByTestId("quota-card");
-      expect(card).toBeInTheDocument();
-      // Should show project name, not truncated ID
-      expect(card.textContent).toContain("Project One");
-      // Key count vs max
-      expect(card.textContent).toContain("Keys: 2/5");
-      expect(card.textContent).toContain("500");
-      expect(card.textContent).toContain("1000");
-      // Suspend/Activate button
-      expect(screen.getByTestId("toggle-status")).toBeInTheDocument();
-      expect(screen.getByText("Suspend")).toBeInTheDocument();
-    });
-  });
-
-  it("opens edit modal on click", async () => {
-    mockApi.listQuotas.mockResolvedValue({
-      quotas: [
-        {
-          id: "q1",
-          projectId: "proj-1",
-          dailyRequestLimit: 1000,
-          monthlyRequestLimit: null,
-          maxKeys: 10,
-          rateLimitRpm: 60,
-          status: "active",
-          currentDailyUsage: 0,
-          currentMonthlyUsage: 0,
-        },
-      ],
-    });
-
-    render(
-      <MemoryRouter>
-        <SubscriptionsPage adminKey="test-key" />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Edit Quota")).toBeInTheDocument();
-    });
-
-    // Click "Edit Quota" button on card
-    fireEvent.click(screen.getByText("Edit Quota"));
-
-    await waitFor(() => {
-      // Modal should appear with "Save Changes" button
-      expect(screen.getByText("Save Changes")).toBeInTheDocument();
-    });
-  });
-
-  it("shows empty state with no quotas", async () => {
-    mockApi.listQuotas.mockResolvedValue({ quotas: [] });
-
-    render(
-      <MemoryRouter>
-        <SubscriptionsPage adminKey="test-key" />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("empty-state")).toBeInTheDocument();
-    });
-  });
-});

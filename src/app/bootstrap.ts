@@ -70,6 +70,7 @@ export function bootstrapFromEnv(): BootstrapResult {
       projectId: seedProjectId,
       hashedKey: hashKey(seedApiKey),
       status: "active",
+      createdAt: new Date().toISOString(),
     },
   ]);
 

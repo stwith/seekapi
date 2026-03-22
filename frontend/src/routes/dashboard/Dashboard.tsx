@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/shadcn/select";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ServerCrash } from "lucide-react";
+import { Badge } from "@/components/ui/shadcn/badge";
 import { PageHeader } from "@/components/ui/page-header.js";
 
 interface DashboardProps {
@@ -30,9 +31,11 @@ export function Dashboard({ adminKey }: DashboardProps) {
   const [selectedProject, setSelectedProject] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [healthy, setHealthy] = useState<boolean | null>(null);
 
   useEffect(() => {
     api.listProjects(adminKey).then(setProjects).catch(() => {});
+    fetch("/v1/health").then((r) => setHealthy(r.ok)).catch(() => setHealthy(false));
   }, [adminKey]);
 
   const loadDashboard = useCallback(async () => {
@@ -104,9 +107,19 @@ export function Dashboard({ adminKey }: DashboardProps) {
 
   return (
     <div>
-      <PageHeader
-        title={t("dashboard.title")}
-        actions={
+      <div className="flex items-center gap-3 mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">{t("dashboard.title")}</h1>
+        {healthy !== null && (
+          healthy ? (
+            <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-600" data-testid="health-status">{t("overview.connected")}</Badge>
+          ) : (
+            <Badge variant="destructive" data-testid="health-status">
+              <ServerCrash className="mr-1 size-3" />
+              {t("overview.unreachable")}
+            </Badge>
+          )
+        )}
+        <div className="ml-auto">
           <Select
             value={selectedProject || "__all__"}
             onValueChange={(v) => setSelectedProject(v === "__all__" ? "" : v)}
@@ -121,8 +134,8 @@ export function Dashboard({ adminKey }: DashboardProps) {
               ))}
             </SelectContent>
           </Select>
-        }
-      />
+        </div>
+      </div>
 
       {/* Stats */}
       <div data-testid="stats-cards" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">

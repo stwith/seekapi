@@ -54,7 +54,7 @@ export class InMemoryApiKeyRepository implements ApiKeyRepository {
   }
 
   async create(row: ApiKeyRow): Promise<void> {
-    this.keys.push(row);
+    this.keys.push({ ...row, createdAt: row.createdAt ?? new Date().toISOString() });
   }
 
   async updateStatus(id: string, status: string): Promise<void> {
