@@ -4,8 +4,8 @@ import { projects } from "./projects.js";
 export const providerCredentials = pgTable("provider_credentials", {
   id: uuid("id").defaultRandom().primaryKey(),
   projectId: uuid("project_id")
-    .notNull()
     .references(() => projects.id),
+  name: varchar("name", { length: 255 }).notNull().default(""),
   provider: varchar("provider", { length: 64 }).notNull(),
   encryptedSecret: text("encrypted_secret").notNull(),
   metadataJson: jsonb("metadata_json"),

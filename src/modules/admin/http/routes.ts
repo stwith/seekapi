@@ -426,6 +426,147 @@ export async function registerAdminRoutes(
     },
   );
 
+  // --- Global credential CRUD ---
+  app.get(
+    "/v1/admin/credentials",
+    { preHandler: checkAdminAuth },
+    async (_req: FastifyRequest, reply: FastifyReply) => {
+      const credentials = await adminService.listGlobalCredentials();
+      return reply.send({ credentials });
+    },
+  );
+
+  app.post(
+    "/v1/admin/credentials",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const body = req.body as { provider?: string; name?: string; secret?: string } | undefined;
+      if (!body?.provider || !body?.secret) {
+        return reply.status(400).send({
+          error: "BAD_REQUEST",
+          message: "provider and secret are required",
+        });
+      }
+
+      try {
+        const result = await adminService.createGlobalCredential(
+          body.provider,
+          body.name ?? "",
+          body.secret,
+        );
+        return reply.status(201).send(result);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "INVALID_PROVIDER") {
+          return reply.status(400).send({ error: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.put(
+    "/v1/admin/credentials/:credentialId",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { credentialId } = req.params as { credentialId: string };
+      const body = req.body as { name?: string; secret?: string } | undefined;
+
+      try {
+        await adminService.updateGlobalCredential(credentialId, {
+          name: body?.name,
+          secret: body?.secret,
+        });
+        return reply.send({ status: "updated" });
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "CREDENTIAL_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.delete(
+    "/v1/admin/credentials/:credentialId",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { credentialId } = req.params as { credentialId: string };
+
+      try {
+        await adminService.deleteGlobalCredential(credentialId);
+        return reply.send({ status: "deleted" });
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "CREDENTIAL_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // --- Project credential refs ---
+  app.get(
+    "/v1/admin/projects/:projectId/credential-refs",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      try {
+        const refs = await adminService.getProjectCredentialRefs(projectId);
+        return reply.send({ credentials: refs });
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.post(
+    "/v1/admin/projects/:projectId/credential-refs",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId } = req.params as { projectId: string };
+      const body = req.body as { credentialId?: string } | undefined;
+      if (!body?.credentialId) {
+        return reply.status(400).send({
+          error: "BAD_REQUEST",
+          message: "credentialId is required",
+        });
+      }
+
+      try {
+        await adminService.addCredentialRef(projectId, body.credentialId);
+        return reply.status(201).send({ status: "added" });
+      } catch (err) {
+        if (err instanceof AdminError) {
+          if (err.code === "PROJECT_NOT_FOUND" || err.code === "CREDENTIAL_NOT_FOUND") {
+            return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+          }
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.delete(
+    "/v1/admin/projects/:projectId/credential-refs/:credentialId",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { projectId, credentialId } = req.params as { projectId: string; credentialId: string };
+
+      try {
+        await adminService.removeCredentialRef(projectId, credentialId);
+        return reply.send({ status: "removed" });
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
   // --- Configure binding ---
   app.post(
     "/v1/admin/projects/:projectId/bindings",

@@ -28,6 +28,13 @@ vi.mock("../lib/api.js", () => ({
     configureBinding: vi.fn(),
     listQuotas: vi.fn(),
     updateProjectQuota: vi.fn(),
+    listGlobalCredentials: vi.fn(),
+    listProjectCredentialRefs: vi.fn(),
+    addProjectCredentialRef: vi.fn(),
+    removeProjectCredentialRef: vi.fn(),
+    createGlobalCredential: vi.fn(),
+    deleteGlobalCredential: vi.fn(),
+    updateGlobalCredential: vi.fn(),
   },
 }));
 
@@ -117,6 +124,7 @@ describe("UsagePage provider filter [Task 55]", () => {
 describe("ProvidersPage [Task 56]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listGlobalCredentials.mockResolvedValue({ credentials: [] });
     // Mock global fetch for health endpoint
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -124,16 +132,11 @@ describe("ProvidersPage [Task 56]", () => {
     }) as unknown as typeof fetch;
   });
 
-  it("renders provider cards with capabilities and stats", async () => {
-    mockApi.listProviders.mockResolvedValue({
-      providers: [
-        { id: "brave", capabilities: ["search.web", "search.news", "search.images"] },
-        { id: "serpapi", capabilities: ["search.web", "search.news", "search.images"] },
-      ],
-    });
-    mockApi.getProviderBreakdown.mockResolvedValue({
-      providers: [
-        { provider: "brave", requestCount: 50, successCount: 48, failureCount: 2, avgLatencyMs: 90 },
+  it("renders credential pool with global credentials", async () => {
+    mockApi.listGlobalCredentials.mockResolvedValue({
+      credentials: [
+        { id: "cred-1", name: "Brave Primary", provider: "brave", status: "active" },
+        { id: "cred-2", name: "SerpAPI Key", provider: "serpapi", status: "active" },
       ],
     });
 
@@ -144,12 +147,8 @@ describe("ProvidersPage [Task 56]", () => {
     );
 
     await waitFor(() => {
-      const list = screen.getByTestId("providers-list");
-      expect(list).toBeInTheDocument();
-      expect(list.textContent).toContain("brave");
-      expect(list.textContent).toContain("serpapi");
-      expect(list.textContent).toContain("search.web");
-      expect(list.textContent).toContain("50 req");
+      expect(screen.getByText("Brave Primary")).toBeInTheDocument();
+      expect(screen.getByText("SerpAPI Key")).toBeInTheDocument();
     });
   });
 });
@@ -166,16 +165,21 @@ describe("ProjectDetail multi-provider [Task 53]", () => {
         { id: "serpapi", capabilities: ["search.web", "search.news", "search.images"] },
       ],
     });
+    mockApi.listGlobalCredentials.mockResolvedValue({ credentials: [] });
+    mockApi.listProjectCredentialRefs.mockResolvedValue({ credentials: [] });
   });
 
-  it("displays multiple provider credentials [Phase 4D AC6]", async () => {
+  it("displays multiple linked credentials [Phase 4D AC6]", async () => {
     mockApi.getProjectDetail.mockResolvedValue({
       project: { id: "proj-1", name: "Multi Cred Project", status: "active" },
       bindings: [],
       keys: [],
+      credentials: [],
+    });
+    mockApi.listProjectCredentialRefs.mockResolvedValue({
       credentials: [
-        { id: "cred-brave", projectId: "proj-1", provider: "brave", status: "active" },
-        { id: "cred-tavily", projectId: "proj-1", provider: "tavily", status: "active" },
+        { id: "cred-brave", name: "Brave Key", provider: "brave", status: "active" },
+        { id: "cred-tavily", name: "Tavily Key", provider: "tavily", status: "active" },
       ],
     });
 
@@ -188,13 +192,13 @@ describe("ProjectDetail multi-provider [Task 53]", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Provider Credentials")).toBeInTheDocument();
-      expect(screen.getByText("cred-brave")).toBeInTheDocument();
-      expect(screen.getByText("cred-tavily")).toBeInTheDocument();
+      expect(screen.getByText("Linked Credentials")).toBeInTheDocument();
+      expect(screen.getByText("Brave Key")).toBeInTheDocument();
+      expect(screen.getByText("Tavily Key")).toBeInTheDocument();
     });
   });
 
-  it("shows provider selector for credentials and bindings", async () => {
+  it("shows credential link select and binding provider selector", async () => {
     mockApi.getProjectDetail.mockResolvedValue({
       project: { id: "proj-1", name: "Test Project", status: "active" },
       bindings: [
@@ -202,7 +206,10 @@ describe("ProjectDetail multi-provider [Task 53]", () => {
         { provider: "serpapi", capability: "search.images", enabled: true, priority: 1 },
       ],
       keys: [],
-      credentials: [{ id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" }],
+      credentials: [],
+    });
+    mockApi.listProjectCredentialRefs.mockResolvedValue({
+      credentials: [{ id: "cred-1", name: "Brave Key", provider: "brave", status: "active" }],
     });
 
     render(
@@ -214,11 +221,9 @@ describe("ProjectDetail multi-provider [Task 53]", () => {
     );
 
     await waitFor(() => {
-      // Provider credential selector — shadcn Select trigger shows only selected value
-      const credSelect = screen.getByTestId("credential-provider-select");
+      // Link credential select
+      const credSelect = screen.getByTestId("link-credential-select");
       expect(credSelect).toBeInTheDocument();
-      // First provider is auto-selected as default
-      expect(credSelect.textContent).toContain("brave");
 
       // Binding provider selector
       const bindSelect = screen.getByTestId("binding-provider-select");

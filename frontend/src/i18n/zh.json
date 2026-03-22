@@ -7,6 +7,7 @@
     "dismiss": "\u5173\u95ed",
     "copy": "\u590d\u5236",
     "copied": "\u5df2\u590d\u5236\uff01",
+    "delete": "\u5220\u9664",
     "disable": "\u7981\u7528",
     "disabled": "\u5df2\u7981\u7528",
     "enable": "\u542f\u7528",
@@ -103,7 +104,12 @@
     "newKeyTitle": "\u65b0 API \u5bc6\u94a5\uff08\u4ec5\u663e\u793a\u4e00\u6b21\uff09",
     "newKeyMessage": "\u8bf7\u7acb\u5373\u590d\u5236\u6b64\u5bc6\u94a5\uff0c\u5b83\u4e0d\u4f1a\u518d\u6b21\u663e\u793a\u3002",
     "noKeys": "\u6682\u65e0\u5bc6\u94a5",
-    "keyId": "\u5bc6\u94a5 ID"
+    "keyId": "\u5bc6\u94a5 ID",
+    "linkedCredentials": "\u5df2\u5173\u8054\u51ed\u8bc1",
+    "noLinkedCredentials": "\u6682\u65e0\u5df2\u5173\u8054\u51ed\u8bc1\uff0c\u8bf7\u4ece\u5168\u5c40\u51ed\u8bc1\u6c60\u4e2d\u9009\u62e9\u5173\u8054\u3002",
+    "linkCredential": "\u5173\u8054\u51ed\u8bc1",
+    "unlinkCredential": "\u53d6\u6d88\u5173\u8054",
+    "selectCredential": "\u9009\u62e9\u51ed\u8bc1..."
   },
   "keys": {
     "title": "API \u5bc6\u94a5",
@@ -137,7 +143,17 @@
   },
   "providers": {
     "title": "\u63d0\u4f9b\u5546",
-    "noProviders": "\u6682\u65e0\u6ce8\u518c\u7684\u63d0\u4f9b\u5546"
+    "noProviders": "\u6682\u65e0\u6ce8\u518c\u7684\u63d0\u4f9b\u5546",
+    "credentialPool": "\u51ed\u8bc1\u6c60",
+    "noCredentials": "\u6682\u65e0\u51ed\u8bc1\uff0c\u8bf7\u5728\u4e0b\u65b9\u6dfb\u52a0\u3002",
+    "addCredential": "\u6dfb\u52a0\u51ed\u8bc1",
+    "credentialName": "\u51ed\u8bc1\u540d\u79f0",
+    "credentialNamePlaceholder": "\u5982\uff1aBrave \u4e3b\u529b",
+    "apiSecret": "API \u5bc6\u94a5",
+    "deleteCredential": "\u5220\u9664\u51ed\u8bc1",
+    "deleteConfirm": "\u786e\u5b9a\u5220\u9664\u51ed\u8bc1 \"{{name}}\"\uff1f",
+    "editName": "\u7f16\u8f91\u540d\u79f0",
+    "newName": "\u65b0\u540d\u79f0"
   },
   "subscriptions": {
     "title": "\u8ba2\u9605\u4e0e\u914d\u989d",
