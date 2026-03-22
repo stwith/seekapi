@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-21
 
-**Status:** Draft
+**Status:** Completed
 
 **Goal:** Expand SeekAPI from a Brave-only gateway to a true multi-provider search dispatcher by adding Tavily, Kagi, and SerpAPI through the existing canonical API and control-plane boundaries.
 
@@ -237,7 +237,7 @@ Each provider-specific slice should also include targeted adapter tests and rout
 
 ## Phase 4E: End-to-End Validation
 
-**Status:** In Progress
+**Status:** Completed
 
 ### Task 58: Multi-provider integration and E2E verification [AC2][AC3][AC4]
 
