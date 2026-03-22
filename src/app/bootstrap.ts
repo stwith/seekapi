@@ -81,6 +81,7 @@ export function bootstrapFromEnv(): BootstrapResult {
       { provider: "tavily", capability: "search.web", enabled: true, priority: 1 },
       { provider: "kagi", capability: "search.web", enabled: true, priority: 2 },
       { provider: "brave", capability: "search.news", enabled: true, priority: 0 },
+      { provider: "kagi", capability: "search.news", enabled: true, priority: 1 },
       { provider: "brave", capability: "search.images", enabled: true, priority: 0 },
     ],
     defaultProvider: "brave",

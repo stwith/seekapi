@@ -45,6 +45,20 @@ AC7: `bash scripts/validate.sh` remains the delivery gate and passes after each 
 - Preserve `bash scripts/validate.sh` as the delivery gate.
 - Keep the execution flow deterministic and explainable.
 
+## Phase 4B: Third Provider Expansion (Kagi)
+
+**Status:** In Progress
+
+**Goal:** Extend Phase 4 to validate that the multi-provider architecture scales beyond two providers by adding Kagi as a third search provider with full error-envelope handling, routing, and fallback support.
+
+**Rationale:** The original non-goal of "three or more providers in one phase" is relaxed because Phase 4A (Tavily) proved the architecture is stable and extensible. Adding a third provider in 4B validates that the abstraction holds at N>2 with minimal incremental effort.
+
+**Scope:**
+- Kagi provider adapter (schemas, client with error-envelope handling, mapper, adapter)
+- Provider registry and routing integration for three-provider fallback chains
+- Tests covering Kagi-specific error envelopes (200 body with `error[]`)
+- Updated documentation for Kagi env vars and capability matrix
+
 ## Non-Goals
 
 - Multi-provider racing or fanout

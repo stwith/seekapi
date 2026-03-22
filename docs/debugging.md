@@ -94,9 +94,10 @@ Provider capabilities:
 |---|---|
 | `brave` | `search.web`, `search.news`, `search.images` |
 | `tavily` | `search.web` |
-| `kagi` | `search.web` |
+| `kagi` | `search.web`, `search.news` |
 
 Default seed routing for `search.web`: Brave (priority 0, default) → Tavily (priority 1, fallback) → Kagi (priority 2, fallback).
+Default seed routing for `search.news`: Brave (priority 0, default) → Kagi (priority 1, fallback).
 
 Error categories and their routing behavior:
 | Category | Retryable | Fallback? |

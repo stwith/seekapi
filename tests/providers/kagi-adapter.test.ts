@@ -8,12 +8,12 @@ import type { KagiSearchResponse } from "../../src/providers/kagi/schemas.js";
 
 // AC1: adapter boundary validation
 describe("KagiAdapter", () => {
-  it("advertises only search.web capability", () => {
+  it("advertises search.web and search.news capabilities", () => {
     const adapter = new KagiAdapter();
     const caps = adapter.supportedCapabilities();
 
     expect(caps).toContain("search.web");
-    expect(caps).not.toContain("search.news");
+    expect(caps).toContain("search.news");
     expect(caps).not.toContain("search.images");
     expect(caps).not.toContain("search.answer");
   });
@@ -158,33 +158,79 @@ describe("Kagi mapper", () => {
     expect(params.limit).toBeUndefined();
   });
 
-  it("maps Kagi response to canonical items filtering by t=0", () => {
+  it("maps Kagi response to canonical web items filtering by t=0", () => {
     const response: KagiSearchResponse = {
       meta: { id: "abc", node: "us-east", ms: 42 },
       data: [
         {
           t: 0,
-          title: "Test Result",
+          title: "Web Result",
           url: "https://example.com",
-          snippet: "A test snippet",
+          snippet: "A web snippet",
           published: "2026-03-21T00:00:00Z",
         },
         {
           t: 1,
-          title: "",
-          url: "",
+          title: "News Result",
+          url: "https://news.example.com",
+          snippet: "A news snippet",
         },
       ],
     };
 
-    const items = toCanonicalItems(response);
+    const items = toCanonicalItems("search.web", response);
     expect(items).toHaveLength(1);
     expect(items[0]).toEqual({
-      title: "Test Result",
+      title: "Web Result",
       url: "https://example.com",
-      snippet: "A test snippet",
+      snippet: "A web snippet",
       publishedAt: "2026-03-21T00:00:00Z",
       sourceType: "web",
+      score: null,
+    });
+  });
+
+  it("maps Kagi response to canonical news items filtering by t=1", () => {
+    const response: KagiSearchResponse = {
+      meta: { id: "abc", node: "us-east", ms: 42 },
+      data: [
+        {
+          t: 0,
+          title: "Web Result",
+          url: "https://example.com",
+          snippet: "A web snippet",
+        },
+        {
+          t: 1,
+          title: "News Result",
+          url: "https://news.example.com",
+          snippet: "A news snippet",
+          published: "2026-03-21T12:00:00Z",
+        },
+        {
+          t: 1,
+          title: "Another News",
+          url: "https://news2.example.com",
+        },
+      ],
+    };
+
+    const items = toCanonicalItems("search.news", response);
+    expect(items).toHaveLength(2);
+    expect(items[0]).toEqual({
+      title: "News Result",
+      url: "https://news.example.com",
+      snippet: "A news snippet",
+      publishedAt: "2026-03-21T12:00:00Z",
+      sourceType: "news",
+      score: null,
+    });
+    expect(items[1]).toEqual({
+      title: "Another News",
+      url: "https://news2.example.com",
+      snippet: "",
+      publishedAt: null,
+      sourceType: "news",
       score: null,
     });
   });
@@ -194,7 +240,8 @@ describe("Kagi mapper", () => {
       meta: { id: "abc", node: "us-east", ms: 0 },
       data: [],
     };
-    expect(toCanonicalItems(response)).toEqual([]);
+    expect(toCanonicalItems("search.web", response)).toEqual([]);
+    expect(toCanonicalItems("search.news", response)).toEqual([]);
   });
 });
 
@@ -236,11 +283,52 @@ describe("KagiAdapter execute integration", () => {
     }
   });
 
+  it("returns canonical response for a news search via mocked fetch", async () => {
+    const originalFetch = globalThis.fetch;
+    const mockResponse: KagiSearchResponse = {
+      meta: { id: "req-kagi-2", node: "us-east", ms: 80 },
+      data: [
+        {
+          t: 0,
+          title: "Web Only",
+          url: "https://web.example.com",
+        },
+        {
+          t: 1,
+          title: "Breaking News",
+          url: "https://news.example.com",
+          snippet: "Something happened",
+          published: "2026-03-21",
+        },
+      ],
+    };
+    globalThis.fetch = () =>
+      Promise.resolve(new Response(JSON.stringify(mockResponse), { status: 200 }));
+
+    try {
+      const adapter = new KagiAdapter();
+      const result = await adapter.execute(
+        { capability: "search.news", query: "latest" },
+        { credential: "test-key", requestId: "req-002" },
+      );
+
+      expect(result.requestId).toBe("req-002");
+      expect(result.provider).toBe("kagi");
+      expect(result.capability).toBe("search.news");
+      expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.title).toBe("Breaking News");
+      expect(result.items[0]?.sourceType).toBe("news");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("throws for unsupported capability", async () => {
     const adapter = new KagiAdapter();
     await expect(
       adapter.execute(
-        { capability: "search.news" as Capability, query: "q" },
+        { capability: "search.images" as Capability, query: "q" },
         { credential: "key", requestId: "req-x" },
       ),
     ).rejects.toThrow("does not support capability");
