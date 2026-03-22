@@ -3,7 +3,6 @@ import {
   RoutingService,
   RoutingError,
   type ProviderHealth,
-  type RoutingConfig,
 } from "../../src/modules/routing/service/routing-service.js";
 import { ProviderError } from "../../src/providers/core/errors.js";
 import { ProviderRegistry } from "../../src/providers/core/registry.js";
