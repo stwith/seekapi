@@ -33,6 +33,7 @@ function makeProjectContext(overrides?: Partial<ProjectContext>): ProjectContext
       { provider: "tavily", capability: "search.web", enabled: true, priority: 1 },
       { provider: "kagi", capability: "search.web", enabled: true, priority: 2 },
       { provider: "brave", capability: "search.news", enabled: true, priority: 0 },
+      { provider: "kagi", capability: "search.news", enabled: true, priority: 1 },
       { provider: "brave", capability: "search.images", enabled: true, priority: 0 },
     ],
     ...overrides,
@@ -69,14 +70,17 @@ describe("Three-provider registry", () => {
     expect(webProviders.map((a) => a.id)).toContain("kagi");
   });
 
-  it("byCapability returns only Brave for search.news", () => {
+  it("byCapability returns Brave and Kagi for search.news", () => {
     const registry = new ProviderRegistry();
     registry.register(new BraveAdapter());
     registry.register(new TavilyAdapter());
     registry.register(new KagiAdapter());
 
     const newsProviders = registry.byCapability("search.news");
-    expect(newsProviders.map((a) => a.id)).toEqual(["brave"]);
+    const ids = newsProviders.map((a) => a.id);
+    expect(ids).toContain("brave");
+    expect(ids).toContain("kagi");
+    expect(ids).not.toContain("tavily");
   });
 
   it("byCapability returns only Brave for search.images", () => {
@@ -396,5 +400,100 @@ describe("Three-provider fallback", () => {
     });
 
     expect(() => service.selectProvider("search.web")).toThrow(RoutingError);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  search.news: Brave + Kagi capability-aware routing                */
+/* ------------------------------------------------------------------ */
+
+// AC2: search.news routes through Brave and Kagi bindings
+describe("search.news Brave + Kagi routing", () => {
+  it("selects Brave as default for search.news", () => {
+    const ctx = makeProjectContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const result = service.selectProvider("search.news");
+    expect(result.providerId).toBe("brave");
+    expect(result.reason).toBe("default");
+  });
+
+  it("selects Kagi as default for search.news when project binds Kagi first", () => {
+    const ctx = makeProjectContext({
+      defaultProvider: "kagi",
+      bindings: [
+        { provider: "kagi", capability: "search.news", enabled: true, priority: 0 },
+        { provider: "brave", capability: "search.news", enabled: true, priority: 1 },
+      ],
+    });
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const result = service.selectProvider("search.news");
+    expect(result.providerId).toBe("kagi");
+    expect(result.reason).toBe("default");
+  });
+
+  it("explicit kagi routes search.news to kagi", () => {
+    const ctx = makeProjectContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const result = service.selectProvider("search.news", "kagi");
+    expect(result.providerId).toBe("kagi");
+    expect(result.reason).toBe("explicit");
+  });
+
+  it("falls back Brave → Kagi for search.news on retryable error", async () => {
+    const ctx = makeProjectContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const callLog: string[] = [];
+
+    const result = await service.executeWithFallback(
+      "search.news",
+      undefined,
+      async (providerId) => {
+        callLog.push(providerId);
+        if (providerId === "brave") {
+          throw new ProviderError({
+            message: "Brave 503",
+            category: "upstream_5xx",
+            provider: "brave",
+            statusCode: 503,
+          });
+        }
+        return { provider: providerId, success: true };
+      },
+    );
+
+    expect(callLog).toEqual(["brave", "kagi"]);
+    expect(result).toEqual({ provider: "kagi", success: true });
+  });
+
+  it("skips unhealthy Brave, routes search.news directly to Kagi", () => {
+    const ctx = makeProjectContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({
+      health: makeHealth({ brave: false }),
+      config,
+    });
+
+    const result = service.selectProvider("search.news");
+    expect(result.providerId).toBe("kagi");
+    expect(result.reason).toBe("fallback");
+  });
+
+  it("throws when all search.news providers are unhealthy", () => {
+    const ctx = makeProjectContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({
+      health: makeHealth({ brave: false, kagi: false }),
+      config,
+    });
+
+    expect(() => service.selectProvider("search.news")).toThrow(RoutingError);
   });
 });

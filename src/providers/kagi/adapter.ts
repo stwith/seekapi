@@ -10,7 +10,7 @@ import type {
 import { KagiClient } from "./client.js";
 import { toProviderParams, toCanonicalItems } from "./mapper.js";
 
-const KAGI_CAPABILITIES: Capability[] = ["search.web"];
+const KAGI_CAPABILITIES: Capability[] = ["search.web", "search.news"];
 
 /**
  * Kagi Search provider adapter. [AC4]
@@ -38,7 +38,7 @@ export class KagiAdapter implements ProviderAdapter {
     req: CanonicalSearchRequest,
     ctx: ProviderExecutionContext,
   ): Promise<CanonicalSearchResponse> {
-    if (req.capability !== "search.web") {
+    if (req.capability !== "search.web" && req.capability !== "search.news") {
       throw new Error(
         `Kagi adapter does not support capability: ${req.capability}`,
       );
@@ -54,7 +54,7 @@ export class KagiAdapter implements ProviderAdapter {
       provider: this.id,
       capability: req.capability,
       latencyMs,
-      items: toCanonicalItems(raw),
+      items: toCanonicalItems(req.capability, raw),
       extensions: {},
       raw,
     };

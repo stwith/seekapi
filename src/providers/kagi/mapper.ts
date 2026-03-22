@@ -1,4 +1,4 @@
-import type { CanonicalSearchRequest, SearchItem } from "../core/types.js";
+import type { Capability, CanonicalSearchRequest, SearchItem } from "../core/types.js";
 import type { KagiSearchParams, KagiSearchResponse } from "./schemas.js";
 
 /**
@@ -18,17 +18,32 @@ export function toProviderParams(req: CanonicalSearchRequest): KagiSearchParams 
   return params;
 }
 
+/** Kagi result type filter: t=0 for web, t=1 for news. */
+const CAPABILITY_TYPE_FILTER: Record<string, number> = {
+  "search.web": 0,
+  "search.news": 1,
+};
+
+const CAPABILITY_SOURCE_TYPE: Record<string, string> = {
+  "search.web": "web",
+  "search.news": "news",
+};
+
 export function toCanonicalItems(
+  capability: Capability,
   response: KagiSearchResponse,
 ): SearchItem[] {
+  const typeFilter = CAPABILITY_TYPE_FILTER[capability];
+  const sourceType = CAPABILITY_SOURCE_TYPE[capability] ?? "web";
+
   return (response.data ?? [])
-    .filter((r) => r.t === 0)
+    .filter((r) => r.t === typeFilter)
     .map((r) => ({
       title: r.title,
       url: r.url,
       snippet: r.snippet ?? "",
       publishedAt: r.published ?? null,
-      sourceType: "web",
+      sourceType,
       score: null,
     }));
 }
