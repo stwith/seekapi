@@ -83,7 +83,7 @@ describe("ProjectList [AC2]", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("No projects yet.")).toBeInTheDocument();
+      expect(screen.getByText("No projects yet. Create one above.")).toBeInTheDocument();
     });
 
     const input = screen.getByPlaceholderText("New project name");
