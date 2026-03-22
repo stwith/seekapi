@@ -128,8 +128,8 @@ export function KeysPage({ adminKey }: KeysPageProps) {
             </SelectContent>
           </Select>
         </FormField>
-        <div className="space-y-1.5">
-          <span className="h-4 block" />
+        <div className="flex flex-col">
+          <span className="h-4 mb-1.5 block" />
           <Button onClick={handleMint} disabled={!selectedProject || minting} className="h-9">
             <KeyRound className="size-3.5 mr-1.5" />
             {minting ? t("keys.creating") : t("keys.mintNewKey")}

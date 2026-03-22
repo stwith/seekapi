@@ -14,10 +14,10 @@ interface FormFieldProps {
  */
 export function FormField({ label, htmlFor, className, children }: FormFieldProps) {
   return (
-    <div className={cn("space-y-1.5", className)}>
+    <div className={cn("flex flex-col", className)}>
       <Label
         htmlFor={htmlFor}
-        className="text-xs font-medium text-muted-foreground leading-4 h-4 truncate block"
+        className="text-xs font-medium text-muted-foreground leading-4 h-4 mb-1.5 truncate block"
       >
         {label}
       </Label>

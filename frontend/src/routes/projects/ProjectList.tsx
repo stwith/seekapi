@@ -76,8 +76,8 @@ export function ProjectList({ adminKey }: ProjectListProps) {
             className="w-64"
           />
         </FormField>
-        <div className="space-y-1.5">
-          <span className="h-4 block" />
+        <div className="flex flex-col">
+          <span className="h-4 mb-1.5 block" />
           <Button type="submit" disabled={creating} className="h-9">
             {creating ? t("projects.creating") : t("projects.createProject")}
           </Button>

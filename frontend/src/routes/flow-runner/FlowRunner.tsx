@@ -186,8 +186,8 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
             className="w-52"
           />
         </FormField>
-        <div className="space-y-1.5">
-          <span className="h-4 block" />
+        <div className="flex flex-col">
+          <span className="h-4 mb-1.5 block" />
           <Button onClick={runFlow} disabled={running} className="h-9">
             {running ? t("flowRunner.running") : t("flowRunner.runFlow")}
           </Button>
