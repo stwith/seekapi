@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api.js";
-import type { UsageEvent, PaginatedResult, Project, ProviderInfo } from "@/lib/api.js";
+import type { UsageEvent, PaginatedResult, Project, ProviderInfo, ApiKeyInfo } from "@/lib/api.js";
 import { StatusBadge } from "@/components/ui/status-badge.js";
 import { EmptyState } from "@/components/ui/empty-state.js";
 import { LoadingSpinner } from "@/components/ui/loading-skeleton.js";
@@ -68,11 +68,21 @@ export function UsagePage({ adminKey }: UsagePageProps) {
   const [provider, setProvider] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKeyInfo[]>([]);
 
   useEffect(() => {
     api.listProjects(adminKey).then(setProjects).catch(() => {});
     api.listProviders(adminKey).then((r) => setProviders(r.providers)).catch(() => {});
   }, [adminKey]);
+
+  // Load keys for selected project
+  useEffect(() => {
+    if (!projectId) {
+      setApiKeys([]);
+      return;
+    }
+    api.listProjectKeys(adminKey, projectId).then(setApiKeys).catch(() => setApiKeys([]));
+  }, [adminKey, projectId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -114,7 +124,7 @@ export function UsagePage({ adminKey }: UsagePageProps) {
       {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-4 items-end">
         <FormField label={t("common.project")}>
-          <Select value={projectId || "__all__"} onValueChange={(v) => { setProjectId(v === "__all__" ? "" : v); setPage(1); }}>
+          <Select value={projectId || "__all__"} onValueChange={(v) => { setProjectId(v === "__all__" ? "" : v); setApiKeyId(""); setPage(1); }}>
             <SelectTrigger className="w-44">
               <SelectValue placeholder={t("common.allProjects")} />
             </SelectTrigger>
@@ -127,15 +137,26 @@ export function UsagePage({ adminKey }: UsagePageProps) {
           </Select>
         </FormField>
 
-        <FormField label={t("usage.apiKeyId")} htmlFor="api-key-filter">
-          <Input
-            id="api-key-filter"
-            type="text"
-            placeholder={t("usage.apiKeyId")}
-            value={apiKeyId}
-            onChange={(e) => { setApiKeyId(e.target.value); setPage(1); }}
-            className="w-36"
-          />
+        {/* API Key - loaded per project */}
+
+        <FormField label={t("usage.apiKeyId")}>
+          <Select
+            value={apiKeyId || "__all__"}
+            onValueChange={(v) => { setApiKeyId(v === "__all__" ? "" : v); setPage(1); }}
+            disabled={!projectId}
+          >
+            <SelectTrigger className="w-44" aria-label={t("usage.apiKeyId")}>
+              <SelectValue placeholder={projectId ? t("usage.allKeys") : t("usage.selectProjectFirst")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("usage.allKeys")}</SelectItem>
+              {apiKeys.map((k) => (
+                <SelectItem key={k.id} value={k.id}>
+                  {k.id.slice(0, 16)}…
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormField>
 
         <FormField label={t("common.capability")}>
