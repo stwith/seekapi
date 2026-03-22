@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
-import { api } from "../../lib/api.js";
-import type { ProviderInfo, ProviderBreakdown } from "../../lib/api.js";
-import { LoadingSpinner, StatusBadge } from "../../components/ui/index.js";
+import { useTranslation } from "react-i18next";
+import { api } from "@/lib/api.js";
+import type { ProviderInfo, ProviderBreakdown } from "@/lib/api.js";
+import { StatusBadge } from "@/components/ui/status-badge.js";
+import { Skeleton } from "@/components/ui/shadcn/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/shadcn/alert";
+import { EmptyState } from "@/components/ui/empty-state.js";
+import { AlertCircle } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header.js";
+import { formatDate } from "@/lib/format.js";
 
 interface ProvidersPageProps {
   adminKey: string;
@@ -15,6 +22,7 @@ interface ProviderHealth {
 }
 
 export function ProvidersPage({ adminKey }: ProvidersPageProps) {
+  const { t } = useTranslation();
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [healthMap, setHealthMap] = useState<Record<string, ProviderHealth>>({});
   const [stats, setStats] = useState<Record<string, ProviderBreakdown>>({});
@@ -36,7 +44,6 @@ export function ProvidersPage({ adminKey }: ProvidersPageProps) {
         }
         setStats(statsMap);
 
-        // Try to fetch health (requires downstream API key, may fail)
         try {
           const healthRes = await fetch("/v1/health/providers", {
             headers: { Authorization: `Bearer ${adminKey}` },
@@ -62,42 +69,71 @@ export function ProvidersPage({ adminKey }: ProvidersPageProps) {
     })();
   }, [adminKey]);
 
-  if (loading) return <LoadingSpinner label="Loading providers..." />;
-  if (error) return <p className="text-red-400">{error}</p>;
+  if (loading) {
+    return (
+      <div>
+        <PageHeader title={t("providers.title")} />
+        <div className="space-y-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <PageHeader title={t("providers.title")} />
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-white mb-6">Providers</h1>
+      <PageHeader title={t("providers.title")} />
 
       {providers.length === 0 ? (
-        <p className="text-gray-500 text-sm">No providers registered.</p>
+        <EmptyState message={t("providers.noProviders")} />
       ) : (
-        <div data-testid="providers-list" className="space-y-4">
+        <div data-testid="providers-list" className="divide-y divide-border">
           {providers.map((p) => {
             const health = healthMap[p.id];
             const stat = stats[p.id];
             return (
-              <div key={p.id} className="bg-gray-800 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-semibold text-white">{p.id}</h2>
-                  {health && (
-                    <StatusBadge
-                      variant={health.status === "healthy" ? "healthy" : health.status === "degraded" ? "degraded" : "unavailable"}
-                      label={health.status}
-                    />
+              <div key={p.id} className="py-4 first:pt-0">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-3">
+                    <h2 className="font-medium">{p.id}</h2>
+                    {health && (
+                      <StatusBadge
+                        variant={health.status === "healthy" ? "healthy" : health.status === "degraded" ? "degraded" : "unavailable"}
+                        label={health.status}
+                      />
+                    )}
+                  </div>
+                  {stat && (
+                    <div className="flex gap-4 text-xs font-mono text-muted-foreground">
+                      <span>{stat.requestCount} req</span>
+                      <span className="text-emerald-500">{stat.successCount} ok</span>
+                      {stat.failureCount > 0 && (
+                        <span className="text-red-500">{stat.failureCount} fail</span>
+                      )}
+                      <span>{Math.round(stat.avgLatencyMs)}ms avg</span>
+                    </div>
                   )}
                 </div>
-                <p className="text-sm text-gray-400 mb-2">
-                  Capabilities: {p.capabilities.join(", ")}
+                <p className="text-sm text-muted-foreground">
+                  {p.capabilities.join(", ")}
                 </p>
                 {health?.latency_ms !== undefined && (
-                  <p className="text-xs text-gray-500">
-                    Health latency: {health.latency_ms}ms &middot; Checked: {health.checked_at ? new Date(health.checked_at).toLocaleString() : "—"}
-                  </p>
-                )}
-                {stat && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Requests: {stat.requestCount} &middot; Success: {stat.successCount} &middot; Failures: {stat.failureCount} &middot; Avg latency: {Math.round(stat.avgLatencyMs)}ms
+                  <p className="text-xs text-muted-foreground/60 mt-1">
+                    Health latency: {health.latency_ms}ms · Checked: {formatDate(health.checked_at)}
                   </p>
                 )}
               </div>

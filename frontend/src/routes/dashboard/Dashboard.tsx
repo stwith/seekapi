@@ -1,13 +1,26 @@
 import { useEffect, useState, useCallback } from "react";
-import { api } from "../../lib/api.js";
-import type { DashboardStats, TimeSeriesPoint, CapabilityBreakdown, ProviderBreakdown, Project } from "../../lib/api.js";
-import { StatCard, LoadingSpinner } from "../../components/ui/index.js";
+import { useTranslation } from "react-i18next";
+import { api } from "@/lib/api.js";
+import type { DashboardStats, TimeSeriesPoint, CapabilityBreakdown, ProviderBreakdown, Project } from "@/lib/api.js";
+import { StatDisplay } from "@/components/ui/stat-display.js";
+import { LoadingSpinner } from "@/components/ui/loading-skeleton.js";
+import { Alert, AlertDescription } from "@/components/ui/shadcn/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/shadcn/select";
+import { AlertCircle } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header.js";
 
 interface DashboardProps {
   adminKey: string;
 }
 
 export function Dashboard({ adminKey }: DashboardProps) {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [series, setSeries] = useState<TimeSeriesPoint[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilityBreakdown[]>([]);
@@ -18,7 +31,6 @@ export function Dashboard({ adminKey }: DashboardProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load projects once
   useEffect(() => {
     api.listProjects(adminKey).then(setProjects).catch(() => {});
   }, [adminKey]);
@@ -47,7 +59,6 @@ export function Dashboard({ adminKey }: DashboardProps) {
     }
   }, [adminKey, selectedProject]);
 
-  // Load active key count
   useEffect(() => {
     (async () => {
       try {
@@ -55,31 +66,36 @@ export function Dashboard({ adminKey }: DashboardProps) {
         const targetProjs = selectedProject
           ? projs.filter((p) => p.id === selectedProject)
           : projs;
-
         let count = 0;
         await Promise.all(
           targetProjs.map(async (p) => {
             try {
               const keys = await api.listProjectKeys(adminKey, p.id);
               count += keys.filter((k) => k.status === "active").length;
-            } catch {
-              // skip
-            }
+            } catch { /* skip */ }
           }),
         );
         setActiveKeyCount(count);
-      } catch {
-        // non-critical
-      }
+      } catch { /* non-critical */ }
     })();
   }, [adminKey, selectedProject]);
 
-  useEffect(() => {
-    void loadDashboard();
-  }, [loadDashboard]);
+  useEffect(() => { void loadDashboard(); }, [loadDashboard]);
 
-  if (loading) return <LoadingSpinner label="Loading dashboard..." />;
-  if (error) return <p className="text-red-400">{error}</p>;
+  if (loading) return <LoadingSpinner label={t("dashboard.loadingDashboard")} />;
+
+  if (error) {
+    return (
+      <div>
+        <PageHeader title={t("dashboard.title")} />
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   if (!stats) return null;
 
   const successRate = stats.totalRequests > 0
@@ -88,52 +104,54 @@ export function Dashboard({ adminKey }: DashboardProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">Dashboard</h1>
-        <select
-          data-testid="project-filter"
-          value={selectedProject}
-          onChange={(e) => setSelectedProject(e.target.value)}
-          className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
-        >
-          <option value="">All projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+      <PageHeader
+        title={t("dashboard.title")}
+        actions={
+          <Select
+            value={selectedProject || "__all__"}
+            onValueChange={(v) => setSelectedProject(v === "__all__" ? "" : v)}
+          >
+            <SelectTrigger data-testid="project-filter" className="w-48" aria-label={t("common.allProjects")}>
+              <SelectValue placeholder={t("common.allProjects")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("common.allProjects")}</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+      />
+
+      {/* Stats */}
+      <div data-testid="stats-cards" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        <StatDisplay label={t("dashboard.totalRequests")} value={stats.totalRequests} />
+        <StatDisplay label={t("dashboard.successRate")} value={`${successRate}%`} />
+        <StatDisplay label={t("dashboard.failures")} value={stats.failureCount} accent={stats.failureCount > 0 ? "destructive" : "muted"} />
+        <StatDisplay label={t("dashboard.avgLatency")} value={`${Math.round(stats.avgLatencyMs)}ms`} accent="warning" />
+        <StatDisplay label={t("dashboard.activeKeys")} value={activeKeyCount} />
       </div>
 
-      {/* Stats cards */}
-      <div data-testid="stats-cards" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-        <StatCard label="Total Requests" value={stats.totalRequests} accent="teal" />
-        <StatCard label="Success Rate" value={`${successRate}%`} accent="teal" />
-        <StatCard label="Failures" value={stats.failureCount} accent={stats.failureCount > 0 ? "red" : "gray"} />
-        <StatCard label="Avg Latency" value={`${Math.round(stats.avgLatencyMs)}ms`} accent="orange" />
-        <StatCard label="Active Keys" value={activeKeyCount} accent="teal" />
-      </div>
-
-      {/* Time series (text-based chart) */}
+      {/* Time series */}
       <section className="mb-8">
-        <h2 className="text-lg font-semibold text-gray-200 mb-3">Request Volume (Hourly)</h2>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">{t("dashboard.requestVolume")}</h2>
         {series.length === 0 ? (
-          <p className="text-gray-500 text-sm">No data yet.</p>
+          <p className="text-sm text-muted-foreground">{t("common.noData")}</p>
         ) : (
-          <div data-testid="time-series" className="space-y-1">
+          <div data-testid="time-series" className="divide-y divide-border">
             {series.map((point) => {
               const maxCount = Math.max(...series.map((p) => p.count), 1);
               const pct = (point.count / maxCount) * 100;
               return (
-                <div key={point.bucket} className="flex items-center gap-3 text-xs">
-                  <span className="w-40 text-gray-500 shrink-0">
+                <div key={point.bucket} className="flex items-center gap-3 py-1.5 text-xs">
+                  <span className="w-40 font-mono text-muted-foreground shrink-0">
                     {new Date(point.bucket).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </span>
-                  <div className="flex-1 bg-gray-800 rounded h-4 overflow-hidden">
-                    <div
-                      className="bg-primary-600 h-full rounded transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
+                  <div className="flex-1 bg-muted rounded-sm h-3 overflow-hidden">
+                    <div className="bg-primary h-full rounded-sm transition-all" style={{ width: `${pct}%` }} />
                   </div>
-                  <span className="w-10 text-right text-gray-400">{point.count}</span>
+                  <span className="w-10 text-right font-mono text-muted-foreground">{point.count}</span>
                 </div>
               );
             })}
@@ -143,16 +161,16 @@ export function Dashboard({ adminKey }: DashboardProps) {
 
       {/* Provider breakdown */}
       <section className="mb-8">
-        <h2 className="text-lg font-semibold text-gray-200 mb-3">Provider Breakdown</h2>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">{t("dashboard.providerBreakdown")}</h2>
         {providerBreakdown.length === 0 ? (
-          <p className="text-gray-500 text-sm">No data yet.</p>
+          <p className="text-sm text-muted-foreground">{t("common.noData")}</p>
         ) : (
-          <div data-testid="provider-breakdown" className="space-y-2">
+          <div data-testid="provider-breakdown" className="divide-y divide-border">
             {providerBreakdown.map((pb) => (
-              <div key={pb.provider} className="flex items-center justify-between bg-gray-800 rounded px-4 py-2">
-                <span className="text-sm text-gray-300">{pb.provider}</span>
-                <span className="text-sm text-gray-400">
-                  {pb.requestCount} reqs &middot; {pb.successCount} ok &middot; {Math.round(pb.avgLatencyMs)}ms avg
+              <div key={pb.provider} className="flex items-center justify-between py-2.5">
+                <span className="text-sm font-medium">{pb.provider}</span>
+                <span className="text-xs font-mono text-muted-foreground">
+                  {pb.requestCount} req · {pb.successCount} ok · {Math.round(pb.avgLatencyMs)}ms avg
                 </span>
               </div>
             ))}
@@ -162,15 +180,15 @@ export function Dashboard({ adminKey }: DashboardProps) {
 
       {/* Capability breakdown */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-200 mb-3">Capability Breakdown</h2>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">{t("dashboard.capabilityBreakdown")}</h2>
         {capabilities.length === 0 ? (
-          <p className="text-gray-500 text-sm">No data yet.</p>
+          <p className="text-sm text-muted-foreground">{t("common.noData")}</p>
         ) : (
-          <div data-testid="capability-breakdown" className="space-y-2">
+          <div data-testid="capability-breakdown" className="divide-y divide-border">
             {capabilities.map((cap) => (
-              <div key={cap.capability} className="flex items-center justify-between bg-gray-800 rounded px-4 py-2">
-                <span className="text-sm text-gray-300">{cap.capability}</span>
-                <span className="text-sm font-medium text-white">{cap.count}</span>
+              <div key={cap.capability} className="flex items-center justify-between py-2.5">
+                <span className="text-sm">{cap.capability}</span>
+                <span className="text-sm font-mono font-medium">{cap.count}</span>
               </div>
             ))}
           </div>

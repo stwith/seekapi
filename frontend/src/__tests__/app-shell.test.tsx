@@ -27,8 +27,9 @@ describe("App shell [AC1]", () => {
 
   it("renders the login gate when no admin key is set", () => {
     render(<App />);
-    expect(screen.getByText("SeekAPI Operator Console")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("ADMIN_API_KEY")).toBeInTheDocument();
+    expect(screen.getByText("SeekAPI")).toBeInTheDocument();
+    expect(screen.getByText("Operator Console")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter admin API key")).toBeInTheDocument();
   });
 
   it("renders the nav sidebar when admin key is stored", async () => {
