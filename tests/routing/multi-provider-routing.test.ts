@@ -8,6 +8,7 @@ import { ProviderError } from "../../src/providers/core/errors.js";
 import { ProviderRegistry } from "../../src/providers/core/registry.js";
 import { BraveAdapter } from "../../src/providers/brave/adapter.js";
 import { TavilyAdapter } from "../../src/providers/tavily/adapter.js";
+import { KagiAdapter } from "../../src/providers/kagi/adapter.js";
 import { createRoutingConfig } from "../../src/modules/routing/service/routing-config-factory.js";
 import type { ProjectContext } from "../../src/modules/projects/service/project-service.js";
 
@@ -30,6 +31,7 @@ function makeProjectContext(overrides?: Partial<ProjectContext>): ProjectContext
     bindings: [
       { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
       { provider: "tavily", capability: "search.web", enabled: true, priority: 1 },
+      { provider: "kagi", capability: "search.web", enabled: true, priority: 2 },
       { provider: "brave", capability: "search.news", enabled: true, priority: 0 },
       { provider: "brave", capability: "search.images", enabled: true, priority: 0 },
     ],
@@ -38,35 +40,40 @@ function makeProjectContext(overrides?: Partial<ProjectContext>): ProjectContext
 }
 
 /* ------------------------------------------------------------------ */
-/*  Registry: 2-provider                                              */
+/*  Registry: 3-provider                                              */
 /* ------------------------------------------------------------------ */
 
 // AC2: multi-provider registry validation
-describe("Two-provider registry", () => {
-  it("registers both Brave and Tavily without conflict", () => {
+describe("Three-provider registry", () => {
+  it("registers Brave, Tavily, and Kagi without conflict", () => {
     const registry = new ProviderRegistry();
     registry.register(new BraveAdapter());
     registry.register(new TavilyAdapter());
+    registry.register(new KagiAdapter());
 
     expect(registry.listIds()).toContain("brave");
     expect(registry.listIds()).toContain("tavily");
-    expect(registry.list()).toHaveLength(2);
+    expect(registry.listIds()).toContain("kagi");
+    expect(registry.list()).toHaveLength(3);
   });
 
-  it("byCapability returns both for search.web", () => {
+  it("byCapability returns all three for search.web", () => {
     const registry = new ProviderRegistry();
     registry.register(new BraveAdapter());
     registry.register(new TavilyAdapter());
+    registry.register(new KagiAdapter());
 
     const webProviders = registry.byCapability("search.web");
     expect(webProviders.map((a) => a.id)).toContain("brave");
     expect(webProviders.map((a) => a.id)).toContain("tavily");
+    expect(webProviders.map((a) => a.id)).toContain("kagi");
   });
 
   it("byCapability returns only Brave for search.news", () => {
     const registry = new ProviderRegistry();
     registry.register(new BraveAdapter());
     registry.register(new TavilyAdapter());
+    registry.register(new KagiAdapter());
 
     const newsProviders = registry.byCapability("search.news");
     expect(newsProviders.map((a) => a.id)).toEqual(["brave"]);
@@ -76,6 +83,7 @@ describe("Two-provider registry", () => {
     const registry = new ProviderRegistry();
     registry.register(new BraveAdapter());
     registry.register(new TavilyAdapter());
+    registry.register(new KagiAdapter());
 
     const imageProviders = registry.byCapability("search.images");
     expect(imageProviders.map((a) => a.id)).toEqual(["brave"]);
@@ -244,7 +252,7 @@ describe("Two-provider health-aware routing", () => {
     const ctx = makeProjectContext();
     const config = createRoutingConfig(ctx);
     const service = new RoutingService({
-      health: makeHealth({ brave: false, tavily: false }),
+      health: makeHealth({ brave: false, tavily: false, kagi: false }),
       config,
     });
 
@@ -319,5 +327,74 @@ describe("Two-provider usage attribution", () => {
     );
 
     expect(result.provider).toBe("tavily");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Three-provider fallback chain                                     */
+/* ------------------------------------------------------------------ */
+
+// AC2: three-provider fallback chain
+describe("Three-provider fallback", () => {
+  it("falls back Brave → Tavily → Kagi when first two fail", async () => {
+    const ctx = makeProjectContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const callLog: string[] = [];
+
+    const result = await service.executeWithFallback(
+      "search.web",
+      undefined,
+      async (providerId) => {
+        callLog.push(providerId);
+        if (providerId === "brave" || providerId === "tavily") {
+          throw new ProviderError({
+            message: `${providerId} 503`,
+            category: "upstream_5xx",
+            provider: providerId,
+            statusCode: 503,
+          });
+        }
+        return { provider: providerId, success: true };
+      },
+    );
+
+    expect(callLog).toEqual(["brave", "tavily", "kagi"]);
+    expect(result).toEqual({ provider: "kagi", success: true });
+  });
+
+  it("skips unhealthy Brave and Tavily, routes directly to Kagi", () => {
+    const ctx = makeProjectContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({
+      health: makeHealth({ brave: false, tavily: false }),
+      config,
+    });
+
+    const result = service.selectProvider("search.web");
+    expect(result.providerId).toBe("kagi");
+    expect(result.reason).toBe("fallback");
+  });
+
+  it("explicit kagi routes to kagi", () => {
+    const ctx = makeProjectContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const result = service.selectProvider("search.web", "kagi");
+    expect(result.providerId).toBe("kagi");
+    expect(result.reason).toBe("explicit");
+  });
+
+  it("throws when all three providers are unhealthy", () => {
+    const ctx = makeProjectContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({
+      health: makeHealth({ brave: false, tavily: false, kagi: false }),
+      config,
+    });
+
+    expect(() => service.selectProvider("search.web")).toThrow(RoutingError);
   });
 });

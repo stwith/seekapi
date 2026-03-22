@@ -79,6 +79,7 @@ export function bootstrapFromEnv(): BootstrapResult {
     bindings: [
       { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
       { provider: "tavily", capability: "search.web", enabled: true, priority: 1 },
+      { provider: "kagi", capability: "search.web", enabled: true, priority: 2 },
       { provider: "brave", capability: "search.news", enabled: true, priority: 0 },
       { provider: "brave", capability: "search.images", enabled: true, priority: 0 },
     ],
@@ -104,6 +105,17 @@ export function bootstrapFromEnv(): BootstrapResult {
       projectId: seedProjectId,
       provider: "tavily",
       encryptedSecret: encryptSecret(tavilyKey, encryptionKey),
+      status: "active",
+    });
+  }
+
+  const kagiKey = process.env["KAGI_API_KEY"];
+  if (kagiKey) {
+    credentialRepository.seed({
+      id: "cred_seed_003",
+      projectId: seedProjectId,
+      provider: "kagi",
+      encryptedSecret: encryptSecret(kagiKey, encryptionKey),
       status: "active",
     });
   }
