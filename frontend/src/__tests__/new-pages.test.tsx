@@ -15,6 +15,8 @@ vi.mock("../lib/api.js", () => ({
     getDashboardStats: vi.fn(),
     getTimeSeries: vi.fn(),
     getCapabilityBreakdown: vi.fn(),
+    getProviderBreakdown: vi.fn(),
+    listProviders: vi.fn(),
     listProjects: vi.fn(),
     getPerKeyStats: vi.fn(),
     listProjectKeys: vi.fn(),
@@ -50,6 +52,7 @@ describe("Dashboard [Task 35]", () => {
     });
     mockApi.getTimeSeries.mockResolvedValue({ series: [] });
     mockApi.getCapabilityBreakdown.mockResolvedValue({ capabilities: [] });
+    mockApi.getProviderBreakdown.mockResolvedValue({ providers: [] });
 
     render(
       <MemoryRouter>
@@ -77,6 +80,7 @@ describe("Dashboard [Task 35]", () => {
     });
     mockApi.getTimeSeries.mockResolvedValue({ series: [] });
     mockApi.getCapabilityBreakdown.mockResolvedValue({ capabilities: [] });
+    mockApi.getProviderBreakdown.mockResolvedValue({ providers: [] });
 
     render(
       <MemoryRouter>
@@ -102,6 +106,9 @@ describe("Dashboard [Task 35]", () => {
     });
     mockApi.getCapabilityBreakdown.mockResolvedValue({
       capabilities: [{ capability: "search.web", count: 10 }],
+    });
+    mockApi.getProviderBreakdown.mockResolvedValue({
+      providers: [{ provider: "brave", requestCount: 8, successCount: 7, failureCount: 1, avgLatencyMs: 120 }],
     });
 
     render(
@@ -198,6 +205,7 @@ describe("UsagePage [Task 37]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockApi.listProjects.mockResolvedValue([]);
+    mockApi.listProviders.mockResolvedValue({ providers: [{ id: "brave", capabilities: ["search.web"] }] });
   });
 
   it("renders paginated usage events with timestamp and fallback columns", async () => {
@@ -230,7 +238,7 @@ describe("UsagePage [Task 37]", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("data-table")).toBeInTheDocument();
-      expect(screen.getByText("brave")).toBeInTheDocument();
+      expect(screen.getAllByText("brave").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("100ms")).toBeInTheDocument();
       expect(screen.getByText("2")).toBeInTheDocument(); // fallback count
       expect(screen.getByTestId("pagination")).toBeInTheDocument();
@@ -279,6 +287,8 @@ describe("UsagePage [Task 37]", () => {
       expect(screen.getByDisplayValue("All projects")).toBeInTheDocument();
       // Capability filter
       expect(screen.getByDisplayValue("All capabilities")).toBeInTheDocument();
+      // Provider filter
+      expect(screen.getByDisplayValue("All providers")).toBeInTheDocument();
       // Status filter
       expect(screen.getByDisplayValue("All statuses")).toBeInTheDocument();
       // API Key ID filter

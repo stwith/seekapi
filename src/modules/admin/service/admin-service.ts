@@ -17,6 +17,7 @@ import type {
   UsageEventRepository,
   UsageQueryFilters,
   UsageStats,
+  ProviderBreakdown,
   TimeSeriesPoint,
   CapabilityBreakdown,
   KeyUsageStats,
@@ -273,6 +274,13 @@ export class AdminService {
     const repo = this.deps.usageEventRepository;
     if (!repo?.timeSeries) return [];
     return repo.timeSeries(filters, granularity);
+  }
+
+  /** Provider breakdown. [Phase 4D AC3] */
+  async getProviderBreakdown(filters: UsageQueryFilters): Promise<ProviderBreakdown[]> {
+    const repo = this.deps.usageEventRepository;
+    if (!repo?.providerStats) return [];
+    return repo.providerStats(filters);
   }
 
   /** Capability breakdown. */

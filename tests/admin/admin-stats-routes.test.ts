@@ -325,4 +325,65 @@ describe("Admin stats & query routes [Phase 3.5 AC6]", () => {
     const body = res.json();
     expect(body.total).toBe(2);
   });
+
+  // --- Provider stats breakdown [Phase 4D AC3] ---
+
+  it("returns per-provider usage breakdown", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/admin/stats/providers",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.providers).toBeInstanceOf(Array);
+    expect(body.providers.length).toBeGreaterThanOrEqual(1);
+    const brave = body.providers.find((p: { provider: string }) => p.provider === "brave");
+    expect(brave).toBeDefined();
+    expect(brave.requestCount).toBe(3);
+    expect(brave.successCount).toBe(2);
+    expect(brave.failureCount).toBe(1);
+  });
+
+  it("filters provider breakdown by project", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/admin/stats/providers?projectId=${TEST_PROJECT_ID}`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.providers).toBeInstanceOf(Array);
+  });
+
+  // --- Registered providers list [Phase 4D AC6] ---
+
+  it("returns registered providers with capabilities", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/admin/providers",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.providers).toBeInstanceOf(Array);
+    expect(body.providers.length).toBe(4);
+    const ids = body.providers.map((p: { id: string }) => p.id);
+    expect(ids).toContain("brave");
+    expect(ids).toContain("tavily");
+    expect(ids).toContain("kagi");
+    expect(ids).toContain("serpapi");
+    const serpapi = body.providers.find((p: { id: string }) => p.id === "serpapi");
+    expect(serpapi.capabilities).toContain("search.web");
+    expect(serpapi.capabilities).toContain("search.news");
+    expect(serpapi.capabilities).toContain("search.images");
+  });
+
+  it("rejects providers list without admin key", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/admin/providers",
+    });
+    expect(res.statusCode).toBe(401);
+  });
 });

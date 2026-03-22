@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../lib/api.js";
-import type { UsageEvent, PaginatedResult, Project } from "../../lib/api.js";
+import type { UsageEvent, PaginatedResult, Project, ProviderInfo } from "../../lib/api.js";
 import { DataTable, Pagination, LoadingSpinner, StatusBadge, EmptyState, DateRangePicker } from "../../components/ui/index.js";
 import type { Column } from "../../components/ui/index.js";
 
@@ -72,10 +72,13 @@ export function UsagePage({ adminKey }: UsagePageProps) {
   const [apiKeyId, setApiKeyId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [provider, setProvider] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
 
   useEffect(() => {
     api.listProjects(adminKey).then(setProjects).catch(() => {});
+    api.listProviders(adminKey).then((r) => setProviders(r.providers)).catch(() => {});
   }, [adminKey]);
 
   const load = useCallback(async () => {
@@ -88,6 +91,7 @@ export function UsagePage({ adminKey }: UsagePageProps) {
       if (capability) params.capability = capability;
       if (success) params.success = success;
       if (projectId) params.projectId = projectId;
+      if (provider) params.provider = provider;
       if (apiKeyId) params.apiKeyId = apiKeyId;
       if (dateFrom) params.from = dateFrom;
       if (dateTo) params.to = dateTo;
@@ -100,7 +104,7 @@ export function UsagePage({ adminKey }: UsagePageProps) {
     } finally {
       setLoading(false);
     }
-  }, [adminKey, page, pageSize, capability, success, projectId, apiKeyId, dateFrom, dateTo]);
+  }, [adminKey, page, pageSize, capability, success, projectId, apiKeyId, provider, dateFrom, dateTo]);
 
   useEffect(() => {
     void load();
@@ -149,6 +153,17 @@ export function UsagePage({ adminKey }: UsagePageProps) {
           <option value="search.web">search.web</option>
           <option value="search.news">search.news</option>
           <option value="search.images">search.images</option>
+        </select>
+        <select
+          data-testid="provider-filter"
+          value={provider}
+          onChange={(e) => { setProvider(e.target.value); setPage(1); }}
+          className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
+        >
+          <option value="">All providers</option>
+          {providers.map((p) => (
+            <option key={p.id} value={p.id}>{p.id}</option>
+          ))}
         </select>
         <select
           value={success}

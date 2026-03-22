@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: "/projects", label: "Projects" },
   { to: "/keys", label: "API Keys" },
   { to: "/usage", label: "Usage" },
+  { to: "/providers", label: "Providers" },
   { to: "/subscriptions", label: "Subscriptions" },
   { to: "/flow-runner", label: "Flow Runner" },
 ];

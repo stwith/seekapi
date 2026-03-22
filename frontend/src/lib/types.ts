@@ -10,4 +10,5 @@ export type {
   CredentialMeta,
   CreateKeyResult,
   ApiClientError,
+  ProviderInfo,
 } from "./api.js";

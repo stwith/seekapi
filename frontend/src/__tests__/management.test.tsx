@@ -19,6 +19,7 @@ vi.mock("../lib/api.js", () => ({
     configureBinding: vi.fn(),
     createApiKey: vi.fn(),
     disableApiKey: vi.fn(),
+    listProviders: vi.fn(),
   },
 }));
 
@@ -37,6 +38,7 @@ const mockApi = api as unknown as {
   configureBinding: ReturnType<typeof vi.fn>;
   createApiKey: ReturnType<typeof vi.fn>;
   disableApiKey: ReturnType<typeof vi.fn>;
+  listProviders: ReturnType<typeof vi.fn>;
 };
 
 const baseDetail = {
@@ -49,6 +51,12 @@ const baseDetail = {
 describe("Credential management [AC2]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listProviders.mockResolvedValue({
+      providers: [
+        { id: "brave", capabilities: ["search.web", "search.news", "search.images"] },
+        { id: "tavily", capabilities: ["search.web"] },
+      ],
+    });
   });
 
   it("submits credential attach form", async () => {
@@ -67,10 +75,10 @@ describe("Credential management [AC2]", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("No credential attached.")).toBeInTheDocument();
+      expect(screen.getByText("No credentials attached.")).toBeInTheDocument();
     });
 
-    const secretInput = screen.getByPlaceholderText("Brave API secret");
+    const secretInput = screen.getByPlaceholderText("API secret");
     fireEvent.change(secretInput, { target: { value: "BSA_test_secret" } });
     fireEvent.click(screen.getByText("Attach"));
 
@@ -88,6 +96,12 @@ describe("Credential management [AC2]", () => {
 describe("Binding management [AC2]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listProviders.mockResolvedValue({
+      providers: [
+        { id: "brave", capabilities: ["search.web", "search.news", "search.images"] },
+        { id: "tavily", capabilities: ["search.web"] },
+      ],
+    });
   });
 
   it("submits binding configuration", async () => {
@@ -125,6 +139,12 @@ describe("Binding management [AC2]", () => {
 describe("API Key management [AC2]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listProviders.mockResolvedValue({
+      providers: [
+        { id: "brave", capabilities: ["search.web", "search.news", "search.images"] },
+        { id: "tavily", capabilities: ["search.web"] },
+      ],
+    });
   });
 
   it("mints a key and shows reveal-once raw key", async () => {
