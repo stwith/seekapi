@@ -96,6 +96,7 @@ export function bootstrapFromEnv(): BootstrapResult {
     credentialRepository.seed({
       id: "cred_seed_001",
       projectId: seedProjectId,
+      name: "Brave API Key",
       provider: "brave",
       encryptedSecret: encryptSecret(braveKey, encryptionKey),
       status: "active",
@@ -107,6 +108,7 @@ export function bootstrapFromEnv(): BootstrapResult {
     credentialRepository.seed({
       id: "cred_seed_002",
       projectId: seedProjectId,
+      name: "Tavily API Key",
       provider: "tavily",
       encryptedSecret: encryptSecret(tavilyKey, encryptionKey),
       status: "active",
@@ -118,6 +120,7 @@ export function bootstrapFromEnv(): BootstrapResult {
     credentialRepository.seed({
       id: "cred_seed_003",
       projectId: seedProjectId,
+      name: "Kagi API Key",
       provider: "kagi",
       encryptedSecret: encryptSecret(kagiKey, encryptionKey),
       status: "active",
@@ -129,6 +132,7 @@ export function bootstrapFromEnv(): BootstrapResult {
     credentialRepository.seed({
       id: "cred_seed_004",
       projectId: seedProjectId,
+      name: "SerpAPI API Key",
       provider: "serpapi",
       encryptedSecret: encryptSecret(serpApiKey, encryptionKey),
       status: "active",

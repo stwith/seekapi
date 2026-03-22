@@ -153,6 +153,13 @@ export interface ProviderInfo {
   capabilities: string[];
 }
 
+export interface GlobalCredentialMeta {
+  id: string;
+  name: string;
+  provider: string;
+  status: string;
+}
+
 export interface AuditEntry {
   projectId: string;
   actorType: string;
@@ -295,6 +302,54 @@ export const api = {
 
   listQuotas(adminKey: string) {
     return request<{ quotas: ProjectQuota[] }>("/v1/admin/quotas", { adminKey });
+  },
+
+  // Global credential pool endpoints
+  listGlobalCredentials(adminKey: string) {
+    return request<{ credentials: GlobalCredentialMeta[] }>("/v1/admin/credentials", { adminKey });
+  },
+
+  createGlobalCredential(adminKey: string, provider: string, name: string, secret: string) {
+    return request<{ id: string }>("/v1/admin/credentials", {
+      method: "POST",
+      adminKey,
+      body: JSON.stringify({ provider, name, secret }),
+    });
+  },
+
+  updateGlobalCredential(adminKey: string, credentialId: string, updates: { name?: string; secret?: string }) {
+    return request<{ status: string }>(`/v1/admin/credentials/${credentialId}`, {
+      method: "PUT",
+      adminKey,
+      body: JSON.stringify(updates),
+    });
+  },
+
+  deleteGlobalCredential(adminKey: string, credentialId: string) {
+    return request<{ status: string }>(`/v1/admin/credentials/${credentialId}`, {
+      method: "DELETE",
+      adminKey,
+    });
+  },
+
+  // Project credential ref endpoints
+  listProjectCredentialRefs(adminKey: string, projectId: string) {
+    return request<{ credentials: GlobalCredentialMeta[] }>(`/v1/admin/projects/${projectId}/credential-refs`, { adminKey });
+  },
+
+  addProjectCredentialRef(adminKey: string, projectId: string, credentialId: string) {
+    return request<{ status: string }>(`/v1/admin/projects/${projectId}/credential-refs`, {
+      method: "POST",
+      adminKey,
+      body: JSON.stringify({ credentialId }),
+    });
+  },
+
+  removeProjectCredentialRef(adminKey: string, projectId: string, credentialId: string) {
+    return request<{ status: string }>(`/v1/admin/projects/${projectId}/credential-refs/${credentialId}`, {
+      method: "DELETE",
+      adminKey,
+    });
   },
 
   // Canonical search (for flow runner)

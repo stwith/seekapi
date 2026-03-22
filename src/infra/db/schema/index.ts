@@ -7,3 +7,4 @@ export { usageEvents } from "./usage-events.js";
 export { auditLogs } from "./audit-logs.js";
 export { providerHealthSnapshots } from "./provider-health-snapshots.js";
 export { projectQuotas } from "./project-quotas.js";
+export { projectCredentialRefs } from "./project-credential-refs.js";

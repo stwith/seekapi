@@ -20,6 +20,10 @@ vi.mock("../lib/api.js", () => ({
     createApiKey: vi.fn(),
     disableApiKey: vi.fn(),
     listProviders: vi.fn(),
+    listGlobalCredentials: vi.fn(),
+    listProjectCredentialRefs: vi.fn(),
+    addProjectCredentialRef: vi.fn(),
+    removeProjectCredentialRef: vi.fn(),
   },
 }));
 
@@ -39,6 +43,10 @@ const mockApi = api as unknown as {
   createApiKey: ReturnType<typeof vi.fn>;
   disableApiKey: ReturnType<typeof vi.fn>;
   listProviders: ReturnType<typeof vi.fn>;
+  listGlobalCredentials: ReturnType<typeof vi.fn>;
+  listProjectCredentialRefs: ReturnType<typeof vi.fn>;
+  addProjectCredentialRef: ReturnType<typeof vi.fn>;
+  removeProjectCredentialRef: ReturnType<typeof vi.fn>;
 };
 
 const baseDetail = {
@@ -57,16 +65,23 @@ describe("Credential management [AC2]", () => {
         { id: "tavily", capabilities: ["search.web"] },
       ],
     });
+    mockApi.listGlobalCredentials.mockResolvedValue({ credentials: [] });
+    mockApi.listProjectCredentialRefs.mockResolvedValue({ credentials: [] });
   });
 
-  it("submits credential attach form", async () => {
-    mockApi.getProjectDetail
-      .mockResolvedValueOnce({ ...baseDetail })
+  it("links a credential from the global pool", async () => {
+    mockApi.getProjectDetail.mockResolvedValue({ ...baseDetail });
+    mockApi.listGlobalCredentials.mockResolvedValue({
+      credentials: [
+        { id: "cred-1", name: "Brave Key", provider: "brave", status: "active" },
+      ],
+    });
+    mockApi.listProjectCredentialRefs
+      .mockResolvedValueOnce({ credentials: [] })
       .mockResolvedValueOnce({
-        ...baseDetail,
-        credentials: [{ id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" }],
+        credentials: [{ id: "cred-1", name: "Brave Key", provider: "brave", status: "active" }],
       });
-    mockApi.upsertCredential.mockResolvedValue({ id: "cred-1" });
+    mockApi.addProjectCredentialRef.mockResolvedValue({ status: "linked" });
 
     render(
       <MemoryRouter>
@@ -75,21 +90,12 @@ describe("Credential management [AC2]", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("No credentials attached.")).toBeInTheDocument();
+      expect(screen.getByText("No credentials linked. Link from the global pool below.")).toBeInTheDocument();
     });
 
-    const secretInput = screen.getByPlaceholderText("API secret");
-    fireEvent.change(secretInput, { target: { value: "BSA_test_secret" } });
-    fireEvent.click(screen.getByText("Attach"));
-
-    await waitFor(() => {
-      expect(mockApi.upsertCredential).toHaveBeenCalledWith(
-        "test-key",
-        "proj-1",
-        "brave",
-        "BSA_test_secret",
-      );
-    });
+    // The link credential select and button should be present
+    expect(screen.getByTestId("link-credential-select")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Link Credential" })).toBeInTheDocument();
   });
 });
 
@@ -102,6 +108,8 @@ describe("Binding management [AC2]", () => {
         { id: "tavily", capabilities: ["search.web"] },
       ],
     });
+    mockApi.listGlobalCredentials.mockResolvedValue({ credentials: [] });
+    mockApi.listProjectCredentialRefs.mockResolvedValue({ credentials: [] });
   });
 
   it("submits binding configuration", async () => {
@@ -145,6 +153,8 @@ describe("API Key management [AC2]", () => {
         { id: "tavily", capabilities: ["search.web"] },
       ],
     });
+    mockApi.listGlobalCredentials.mockResolvedValue({ credentials: [] });
+    mockApi.listProjectCredentialRefs.mockResolvedValue({ credentials: [] });
   });
 
   it("mints a key and shows reveal-once raw key", async () => {

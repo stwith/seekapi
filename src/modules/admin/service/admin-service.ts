@@ -139,6 +139,7 @@ export class AdminService {
     await this.deps.credentialRepository.upsert({
       id,
       projectId,
+      name: "",
       provider,
       encryptedSecret,
       status: "active",
@@ -427,6 +428,128 @@ export class AdminService {
         return { ...quota, currentDailyUsage: usage.daily, currentMonthlyUsage: usage.monthly };
       }),
     );
+  }
+
+  // --- Global Credential Pool methods ---
+
+  /** Create a global (projectId=null) credential. */
+  async createGlobalCredential(provider: string, name: string, secret: string): Promise<{ id: string }> {
+    if (!ALLOWED_PROVIDERS.has(provider)) {
+      throw new AdminError(
+        `Provider "${provider}" is not supported in the current phase. Allowed: ${[...ALLOWED_PROVIDERS].join(", ")}`,
+        "INVALID_PROVIDER",
+      );
+    }
+
+    const id = randomUUID();
+    const encryptedSecret = encryptSecret(secret, this.deps.encryptionKey);
+
+    if (!this.deps.credentialRepository.createGlobal) {
+      throw new Error("Global credential creation not supported by this repository");
+    }
+    await this.deps.credentialRepository.createGlobal({
+      id,
+      projectId: null,
+      name,
+      provider,
+      encryptedSecret,
+      status: "active",
+    });
+
+    return { id };
+  }
+
+  /** List all active global credentials. */
+  async listGlobalCredentials(): Promise<CredentialMeta[]> {
+    if (!this.deps.credentialRepository.findAllGlobal) {
+      return [];
+    }
+    return this.deps.credentialRepository.findAllGlobal();
+  }
+
+  /** Update a global credential (name and/or secret). */
+  async updateGlobalCredential(credentialId: string, updates: { name?: string; secret?: string }): Promise<void> {
+    if (!this.deps.credentialRepository.findById) {
+      throw new Error("Credential lookup not supported by this repository");
+    }
+    const existing = await this.deps.credentialRepository.findById(credentialId);
+    if (!existing) {
+      throw new AdminError("Credential not found", "CREDENTIAL_NOT_FOUND");
+    }
+
+    if (!this.deps.credentialRepository.updateGlobal) {
+      throw new Error("Global credential update not supported by this repository");
+    }
+
+    const repoUpdates: { name?: string; encryptedSecret?: string; status?: string } = {};
+    if (updates.name !== undefined) repoUpdates.name = updates.name;
+    if (updates.secret !== undefined) {
+      repoUpdates.encryptedSecret = encryptSecret(updates.secret, this.deps.encryptionKey);
+    }
+
+    await this.deps.credentialRepository.updateGlobal(credentialId, repoUpdates);
+  }
+
+  /** Soft-delete a global credential. */
+  async deleteGlobalCredential(credentialId: string): Promise<void> {
+    if (!this.deps.credentialRepository.findById) {
+      throw new Error("Credential lookup not supported by this repository");
+    }
+    const existing = await this.deps.credentialRepository.findById(credentialId);
+    if (!existing) {
+      throw new AdminError("Credential not found", "CREDENTIAL_NOT_FOUND");
+    }
+
+    if (!this.deps.credentialRepository.deleteGlobal) {
+      throw new Error("Global credential deletion not supported by this repository");
+    }
+    await this.deps.credentialRepository.deleteGlobal(credentialId);
+  }
+
+  /** Add a project→credential reference. */
+  async addCredentialRef(projectId: string, credentialId: string): Promise<void> {
+    const project = await this.deps.projectRepository.findById(projectId);
+    if (!project) {
+      throw new AdminError("Project not found", "PROJECT_NOT_FOUND");
+    }
+
+    if (!this.deps.credentialRepository.findById) {
+      throw new Error("Credential lookup not supported by this repository");
+    }
+    const cred = await this.deps.credentialRepository.findById(credentialId);
+    if (!cred) {
+      throw new AdminError("Credential not found", "CREDENTIAL_NOT_FOUND");
+    }
+
+    if (!this.deps.credentialRepository.addProjectRef) {
+      throw new Error("Project credential refs not supported by this repository");
+    }
+    await this.deps.credentialRepository.addProjectRef({
+      id: randomUUID(),
+      projectId,
+      credentialId,
+    });
+  }
+
+  /** Remove a project→credential reference. */
+  async removeCredentialRef(projectId: string, credentialId: string): Promise<void> {
+    if (!this.deps.credentialRepository.removeProjectRef) {
+      throw new Error("Project credential refs not supported by this repository");
+    }
+    await this.deps.credentialRepository.removeProjectRef(projectId, credentialId);
+  }
+
+  /** Get all credentials referenced by a project (via refs). */
+  async getProjectCredentialRefs(projectId: string): Promise<CredentialMeta[]> {
+    const project = await this.deps.projectRepository.findById(projectId);
+    if (!project) {
+      throw new AdminError("Project not found", "PROJECT_NOT_FOUND");
+    }
+
+    if (!this.deps.credentialRepository.findRefsByProject) {
+      return [];
+    }
+    return this.deps.credentialRepository.findRefsByProject(projectId);
   }
 }
 

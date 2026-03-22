@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api.js";
-import type { ProjectDetail, CreateKeyResult, ProviderInfo, CredentialMeta } from "@/lib/types.js";
+import type { ProjectDetail, CreateKeyResult, ProviderInfo, GlobalCredentialMeta } from "@/lib/types.js";
 import { StatusBadge } from "@/components/ui/status-badge.js";
 import { LoadingSpinner } from "@/components/ui/loading-skeleton.js";
 import { Input } from "@/components/ui/shadcn/input";
@@ -36,14 +36,14 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   const { t } = useTranslation();
   const { projectId } = useParams<{ projectId: string }>();
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
-  const [credentials, setCredentials] = useState<CredentialMeta[]>([]);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [selectedProvider, setSelectedProvider] = useState("");
-  const [secret, setSecret] = useState("");
-  const [credSubmitting, setCredSubmitting] = useState(false);
+  // Linked credentials state (global credential refs)
+  const [globalCreds, setGlobalCreds] = useState<GlobalCredentialMeta[]>([]);
+  const [linkedCreds, setLinkedCreds] = useState<GlobalCredentialMeta[]>([]);
+  const [selectedCredId, setSelectedCredId] = useState("");
 
   const [bindProvider, setBindProvider] = useState("");
   const [bindCap, setBindCap] = useState("search.web");
@@ -56,15 +56,17 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   const loadDetail = useCallback(async () => {
     if (!projectId) return;
     try {
-      const [d, provResult] = await Promise.all([
+      const [d, provResult, globalCredsResult, linkedCredsResult] = await Promise.all([
         api.getProjectDetail(adminKey, projectId),
         api.listProviders(adminKey).catch(() => ({ providers: [] })),
+        api.listGlobalCredentials(adminKey).catch(() => ({ credentials: [] })),
+        api.listProjectCredentialRefs(adminKey, projectId).catch(() => ({ credentials: [] })),
       ]);
       setDetail(d);
       setProviders(provResult.providers);
-      setCredentials(d.credentials ?? []);
+      setGlobalCreds(globalCredsResult.credentials);
+      setLinkedCreds(linkedCredsResult.credentials);
       if (provResult.providers.length > 0) {
-        setSelectedProvider((prev) => prev || provResult.providers[0]!.id);
         setBindProvider((prev) => prev || provResult.providers[0]!.id);
       }
       setError(null);
@@ -92,18 +94,29 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
 
   const { project, bindings, keys } = detail;
 
-  async function handleAttachCredential(e: React.FormEvent) {
+  // Compute available (not yet linked) credentials
+  const linkedIds = new Set(linkedCreds.map((c) => c.id));
+  const availableCreds = globalCreds.filter((c) => !linkedIds.has(c.id));
+
+  async function handleLinkCredential(e: React.FormEvent) {
     e.preventDefault();
-    if (!projectId || !secret.trim() || !selectedProvider) return;
-    setCredSubmitting(true);
+    if (!projectId || !selectedCredId) return;
     try {
-      await api.upsertCredential(adminKey, projectId, selectedProvider, secret.trim());
-      setSecret("");
+      await api.addProjectCredentialRef(adminKey, projectId, selectedCredId);
+      setSelectedCredId("");
       await loadDetail();
     } catch (err: unknown) {
       setError((err as Error).message);
-    } finally {
-      setCredSubmitting(false);
+    }
+  }
+
+  async function handleUnlinkCredential(credentialId: string) {
+    if (!projectId) return;
+    try {
+      await api.removeProjectCredentialRef(adminKey, projectId, credentialId);
+      await loadDetail();
+    } catch (err: unknown) {
+      setError((err as Error).message);
     }
   }
 
@@ -168,47 +181,60 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
         </Alert>
       )}
 
-      {/* Provider Credentials */}
+      {/* Linked Credentials (from global pool) */}
       <section>
-        <h2 className="text-sm font-medium text-muted-foreground mb-3">{t("projects.providerCredentials")}</h2>
-        {credentials.length > 0 ? (
-          <div className="divide-y divide-border mb-4">
-            {credentials.map((c) => (
-              <div key={c.id} className="py-2 flex items-center gap-2 text-sm">
-                <span className="font-medium">{c.provider}</span>
-                <StatusBadge variant={c.status === "active" ? "active" : "disabled"} label={c.status} />
-                <span className="font-mono text-xs text-muted-foreground ml-auto">{c.id}</span>
-              </div>
-            ))}
-          </div>
+        <h2 className="text-sm font-medium text-muted-foreground mb-3">{t("projects.linkedCredentials")}</h2>
+        {linkedCreds.length > 0 ? (
+          <Table data-testid="linked-credentials-table" className="mb-4">
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("common.name")}</TableHead>
+                <TableHead>{t("common.provider")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
+                <TableHead>{t("common.actions")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {linkedCreds.map((c) => (
+                <TableRow key={c.id} className="transition-colors hover:bg-muted/50">
+                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell>{c.provider}</TableCell>
+                  <TableCell>
+                    <StatusBadge variant={c.status === "active" ? "active" : "disabled"} label={c.status} />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleUnlinkCredential(c.id)}
+                    >
+                      {t("projects.unlinkCredential")}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         ) : (
-          <p className="text-sm text-muted-foreground mb-4">{t("projects.noCredentials")}</p>
+          <p className="text-sm text-muted-foreground mb-4">{t("projects.noLinkedCredentials")}</p>
         )}
-        <form onSubmit={handleAttachCredential} className="flex gap-4 items-end flex-wrap">
-          <FormField label={t("common.provider")}>
-            <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-              <SelectTrigger data-testid="credential-provider-select" className="w-36" aria-label={t("common.provider")}>
-                <SelectValue placeholder={t("common.provider")} />
+        <form onSubmit={handleLinkCredential} className="flex gap-4 items-end flex-wrap">
+          <FormField label={t("projects.linkCredential")}>
+            <Select value={selectedCredId} onValueChange={setSelectedCredId}>
+              <SelectTrigger data-testid="link-credential-select" className="w-64" aria-label={t("projects.selectCredential")}>
+                <SelectValue placeholder={t("projects.selectCredential")} />
               </SelectTrigger>
               <SelectContent>
-                {providers.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.id}</SelectItem>
+                {availableCreds.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name} ({c.provider})
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </FormField>
-          <FormField label={t("projects.apiSecret")} htmlFor="cred-secret">
-            <Input
-              id="cred-secret"
-              type="password"
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              placeholder={t("projects.apiSecret")}
-              className="w-72"
-            />
-          </FormField>
-          <Button type="submit" disabled={credSubmitting}>
-            {t("common.attach")}
+          <Button type="submit" disabled={!selectedCredId}>
+            {t("projects.linkCredential")}
           </Button>
         </form>
       </section>

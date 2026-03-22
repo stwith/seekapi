@@ -23,6 +23,10 @@ vi.mock("../lib/api.js", () => ({
     createApiKey: vi.fn(),
     disableApiKey: vi.fn(),
     listProviders: vi.fn(),
+    listGlobalCredentials: vi.fn(),
+    listProjectCredentialRefs: vi.fn(),
+    addProjectCredentialRef: vi.fn(),
+    removeProjectCredentialRef: vi.fn(),
   },
 }));
 
@@ -45,6 +49,10 @@ const mockApi = api as unknown as {
   createApiKey: ReturnType<typeof vi.fn>;
   disableApiKey: ReturnType<typeof vi.fn>;
   listProviders: ReturnType<typeof vi.fn>;
+  listGlobalCredentials: ReturnType<typeof vi.fn>;
+  listProjectCredentialRefs: ReturnType<typeof vi.fn>;
+  addProjectCredentialRef: ReturnType<typeof vi.fn>;
+  removeProjectCredentialRef: ReturnType<typeof vi.fn>;
 };
 
 describe("ProjectList [AC2]", () => {
@@ -105,6 +113,8 @@ describe("ProjectDetailPage [AC2]", () => {
         { id: "brave", capabilities: ["search.web", "search.news", "search.images"] },
       ],
     });
+    mockApi.listGlobalCredentials.mockResolvedValue({ credentials: [] });
+    mockApi.listProjectCredentialRefs.mockResolvedValue({ credentials: [] });
   });
 
   it("renders project detail with bindings, keys, and credential", async () => {
@@ -112,7 +122,10 @@ describe("ProjectDetailPage [AC2]", () => {
       project: { id: "proj-1", name: "Test Project", status: "active" },
       bindings: [{ provider: "brave", capability: "search.web", enabled: true, priority: 0 }],
       keys: [{ id: "key-1", projectId: "proj-1", status: "active" }],
-      credentials: [{ id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" }],
+      credentials: [],
+    });
+    mockApi.listProjectCredentialRefs.mockResolvedValue({
+      credentials: [{ id: "cred-1", name: "Brave Key", provider: "brave", status: "active" }],
     });
 
     render(
@@ -130,13 +143,13 @@ describe("ProjectDetailPage [AC2]", () => {
       // Keys section
       expect(screen.getByTestId("keys-table")).toBeInTheDocument();
       expect(screen.getByText("key-1")).toBeInTheDocument();
-      // Credential section — "brave" appears multiple times
-      expect(screen.getByText("Provider Credentials")).toBeInTheDocument();
-      expect(screen.getByText("cred-1")).toBeInTheDocument();
+      // Linked Credentials section
+      expect(screen.getByText("Linked Credentials")).toBeInTheDocument();
+      expect(screen.getByText("Brave Key")).toBeInTheDocument();
     });
   });
 
-  it("shows 'No credential attached' when none exists", async () => {
+  it("shows 'No credentials linked' when none exists", async () => {
     mockApi.getProjectDetail.mockResolvedValue({
       project: { id: "proj-1", name: "Empty Project", status: "active" },
       bindings: [],
@@ -151,7 +164,7 @@ describe("ProjectDetailPage [AC2]", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("No credentials attached.")).toBeInTheDocument();
+      expect(screen.getByText("No credentials linked. Link from the global pool below.")).toBeInTheDocument();
     });
   });
 });

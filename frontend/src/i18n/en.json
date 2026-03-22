@@ -7,6 +7,7 @@
     "dismiss": "Dismiss",
     "copy": "Copy",
     "copied": "Copied!",
+    "delete": "Delete",
     "disable": "Disable",
     "disabled": "Disabled",
     "enable": "Enable",
@@ -103,7 +104,12 @@
     "newKeyTitle": "New API Key (shown once only)",
     "newKeyMessage": "Copy this key now. It cannot be retrieved later.",
     "noKeys": "No keys issued.",
-    "keyId": "Key ID"
+    "keyId": "Key ID",
+    "linkedCredentials": "Linked Credentials",
+    "noLinkedCredentials": "No credentials linked. Link from the global pool below.",
+    "linkCredential": "Link Credential",
+    "unlinkCredential": "Unlink",
+    "selectCredential": "Select credential..."
   },
   "keys": {
     "title": "API Keys",
@@ -137,7 +143,17 @@
   },
   "providers": {
     "title": "Providers",
-    "noProviders": "No providers registered."
+    "noProviders": "No providers registered.",
+    "credentialPool": "Credential Pool",
+    "noCredentials": "No credentials in pool. Add one below.",
+    "addCredential": "Add Credential",
+    "credentialName": "Credential Name",
+    "credentialNamePlaceholder": "e.g. Brave Primary",
+    "apiSecret": "API Secret",
+    "deleteCredential": "Delete Credential",
+    "deleteConfirm": "Are you sure you want to delete credential \"{{name}}\"?",
+    "editName": "Edit Name",
+    "newName": "New Name"
   },
   "subscriptions": {
     "title": "Subscriptions & Quotas",
