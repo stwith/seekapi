@@ -28,7 +28,7 @@ import type { AuditEntry } from "../../audit/service/audit-service.js";
 import type { QuotaRepository, ProjectQuota } from "../../../infra/db/repositories/quota-repository.js";
 
 /** Providers allowed in the current phase (Brave-only). */
-const ALLOWED_PROVIDERS = new Set(["brave", "tavily", "kagi"]);
+const ALLOWED_PROVIDERS = new Set(["brave", "tavily", "kagi", "serpapi"]);
 
 /** Capabilities allowed in the current phase. */
 const ALLOWED_CAPABILITIES = new Set<string>(MVP_CAPABILITIES);

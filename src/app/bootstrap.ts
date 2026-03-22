@@ -82,7 +82,10 @@ export function bootstrapFromEnv(): BootstrapResult {
       { provider: "kagi", capability: "search.web", enabled: true, priority: 2 },
       { provider: "brave", capability: "search.news", enabled: true, priority: 0 },
       { provider: "kagi", capability: "search.news", enabled: true, priority: 1 },
+      { provider: "serpapi", capability: "search.web", enabled: true, priority: 3 },
+      { provider: "serpapi", capability: "search.news", enabled: true, priority: 2 },
       { provider: "brave", capability: "search.images", enabled: true, priority: 0 },
+      { provider: "serpapi", capability: "search.images", enabled: true, priority: 1 },
     ],
     defaultProvider: "brave",
   });
@@ -117,6 +120,17 @@ export function bootstrapFromEnv(): BootstrapResult {
       projectId: seedProjectId,
       provider: "kagi",
       encryptedSecret: encryptSecret(kagiKey, encryptionKey),
+      status: "active",
+    });
+  }
+
+  const serpApiKey = process.env["SERPAPI_API_KEY"];
+  if (serpApiKey) {
+    credentialRepository.seed({
+      id: "cred_seed_004",
+      projectId: seedProjectId,
+      provider: "serpapi",
+      encryptedSecret: encryptSecret(serpApiKey, encryptionKey),
       status: "active",
     });
   }

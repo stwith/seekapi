@@ -9,6 +9,7 @@ import { ProviderRegistry } from "../../src/providers/core/registry.js";
 import { BraveAdapter } from "../../src/providers/brave/adapter.js";
 import { TavilyAdapter } from "../../src/providers/tavily/adapter.js";
 import { KagiAdapter } from "../../src/providers/kagi/adapter.js";
+import { SerpApiAdapter } from "../../src/providers/serpapi/adapter.js";
 import { createRoutingConfig } from "../../src/modules/routing/service/routing-config-factory.js";
 import type { ProjectContext } from "../../src/modules/projects/service/project-service.js";
 
@@ -495,5 +496,249 @@ describe("search.news Brave + Kagi routing", () => {
     });
 
     expect(() => service.selectProvider("search.news")).toThrow(RoutingError);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Four-provider registry: Brave, Tavily, Kagi, SerpAPI              */
+/* ------------------------------------------------------------------ */
+
+function makeFourProviderContext(overrides?: Partial<ProjectContext>): ProjectContext {
+  return {
+    projectId: "proj_test",
+    defaultProvider: "brave",
+    bindings: [
+      { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+      { provider: "tavily", capability: "search.web", enabled: true, priority: 1 },
+      { provider: "kagi", capability: "search.web", enabled: true, priority: 2 },
+      { provider: "serpapi", capability: "search.web", enabled: true, priority: 3 },
+      { provider: "brave", capability: "search.news", enabled: true, priority: 0 },
+      { provider: "kagi", capability: "search.news", enabled: true, priority: 1 },
+      { provider: "serpapi", capability: "search.news", enabled: true, priority: 2 },
+      { provider: "brave", capability: "search.images", enabled: true, priority: 0 },
+      { provider: "serpapi", capability: "search.images", enabled: true, priority: 1 },
+    ],
+    ...overrides,
+  };
+}
+
+// AC1: four-provider registry validation
+describe("Four-provider registry", () => {
+  it("registers Brave, Tavily, Kagi, and SerpAPI without conflict", () => {
+    const registry = new ProviderRegistry();
+    registry.register(new BraveAdapter());
+    registry.register(new TavilyAdapter());
+    registry.register(new KagiAdapter());
+    registry.register(new SerpApiAdapter());
+
+    expect(registry.listIds()).toContain("brave");
+    expect(registry.listIds()).toContain("tavily");
+    expect(registry.listIds()).toContain("kagi");
+    expect(registry.listIds()).toContain("serpapi");
+    expect(registry.list()).toHaveLength(4);
+  });
+
+  it("byCapability returns all four for search.web", () => {
+    const registry = new ProviderRegistry();
+    registry.register(new BraveAdapter());
+    registry.register(new TavilyAdapter());
+    registry.register(new KagiAdapter());
+    registry.register(new SerpApiAdapter());
+
+    const ids = registry.byCapability("search.web").map((a) => a.id);
+    expect(ids).toContain("brave");
+    expect(ids).toContain("tavily");
+    expect(ids).toContain("kagi");
+    expect(ids).toContain("serpapi");
+  });
+
+  it("byCapability returns Brave, Kagi, SerpAPI for search.news", () => {
+    const registry = new ProviderRegistry();
+    registry.register(new BraveAdapter());
+    registry.register(new TavilyAdapter());
+    registry.register(new KagiAdapter());
+    registry.register(new SerpApiAdapter());
+
+    const ids = registry.byCapability("search.news").map((a) => a.id);
+    expect(ids).toContain("brave");
+    expect(ids).toContain("kagi");
+    expect(ids).toContain("serpapi");
+    expect(ids).not.toContain("tavily");
+  });
+
+  it("byCapability returns Brave and SerpAPI for search.images", () => {
+    const registry = new ProviderRegistry();
+    registry.register(new BraveAdapter());
+    registry.register(new TavilyAdapter());
+    registry.register(new KagiAdapter());
+    registry.register(new SerpApiAdapter());
+
+    const ids = registry.byCapability("search.images").map((a) => a.id);
+    expect(ids).toContain("brave");
+    expect(ids).toContain("serpapi");
+    expect(ids).not.toContain("tavily");
+    expect(ids).not.toContain("kagi");
+  });
+
+  it("every MVP capability has at least two providers", () => {
+    const registry = new ProviderRegistry();
+    registry.register(new BraveAdapter());
+    registry.register(new TavilyAdapter());
+    registry.register(new KagiAdapter());
+    registry.register(new SerpApiAdapter());
+
+    expect(registry.byCapability("search.web").length).toBeGreaterThanOrEqual(2);
+    expect(registry.byCapability("search.news").length).toBeGreaterThanOrEqual(2);
+    expect(registry.byCapability("search.images").length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// AC2: four-provider routing and fallback
+describe("Four-provider routing", () => {
+  it("selects default provider from binding", () => {
+    const ctx = makeFourProviderContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const result = service.selectProvider("search.web");
+    expect(result.providerId).toBe("brave");
+    expect(result.reason).toBe("default");
+  });
+
+  it("explicit serpapi routes to serpapi for search.web", () => {
+    const ctx = makeFourProviderContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const result = service.selectProvider("search.web", "serpapi");
+    expect(result.providerId).toBe("serpapi");
+    expect(result.reason).toBe("explicit");
+  });
+
+  it("explicit serpapi routes to serpapi for search.images", () => {
+    const ctx = makeFourProviderContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const result = service.selectProvider("search.images", "serpapi");
+    expect(result.providerId).toBe("serpapi");
+    expect(result.reason).toBe("explicit");
+  });
+
+  it("falls back Brave → Tavily → Kagi → SerpAPI when first three fail", async () => {
+    const ctx = makeFourProviderContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const callLog: string[] = [];
+
+    const result = await service.executeWithFallback(
+      "search.web",
+      undefined,
+      async (providerId) => {
+        callLog.push(providerId);
+        if (providerId !== "serpapi") {
+          throw new ProviderError({
+            message: `${providerId} 503`,
+            category: "upstream_5xx",
+            provider: providerId,
+            statusCode: 503,
+          });
+        }
+        return { provider: providerId, success: true };
+      },
+    );
+
+    expect(callLog).toEqual(["brave", "tavily", "kagi", "serpapi"]);
+    expect(result).toEqual({ provider: "serpapi", success: true });
+  });
+
+  it("skips unhealthy Brave, Tavily, and Kagi — routes to SerpAPI", () => {
+    const ctx = makeFourProviderContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({
+      health: makeHealth({ brave: false, tavily: false, kagi: false }),
+      config,
+    });
+
+    const result = service.selectProvider("search.web");
+    expect(result.providerId).toBe("serpapi");
+    expect(result.reason).toBe("fallback");
+  });
+
+  it("throws when all four providers are unhealthy", () => {
+    const ctx = makeFourProviderContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({
+      health: makeHealth({ brave: false, tavily: false, kagi: false, serpapi: false }),
+      config,
+    });
+
+    expect(() => service.selectProvider("search.web")).toThrow(RoutingError);
+  });
+});
+
+// AC2: search.images Brave + SerpAPI routing
+describe("search.images Brave + SerpAPI routing", () => {
+  it("selects Brave as default for search.images", () => {
+    const ctx = makeFourProviderContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const result = service.selectProvider("search.images");
+    expect(result.providerId).toBe("brave");
+    expect(result.reason).toBe("default");
+  });
+
+  it("falls back Brave → SerpAPI for search.images on retryable error", async () => {
+    const ctx = makeFourProviderContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({ health: makeHealth(), config });
+
+    const callLog: string[] = [];
+
+    const result = await service.executeWithFallback(
+      "search.images",
+      undefined,
+      async (providerId) => {
+        callLog.push(providerId);
+        if (providerId === "brave") {
+          throw new ProviderError({
+            message: "Brave 503",
+            category: "upstream_5xx",
+            provider: "brave",
+            statusCode: 503,
+          });
+        }
+        return { provider: providerId, success: true };
+      },
+    );
+
+    expect(callLog).toEqual(["brave", "serpapi"]);
+    expect(result).toEqual({ provider: "serpapi", success: true });
+  });
+
+  it("skips unhealthy Brave, routes search.images to SerpAPI", () => {
+    const ctx = makeFourProviderContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({
+      health: makeHealth({ brave: false }),
+      config,
+    });
+
+    const result = service.selectProvider("search.images");
+    expect(result.providerId).toBe("serpapi");
+    expect(result.reason).toBe("fallback");
+  });
+
+  it("throws when all search.images providers are unhealthy", () => {
+    const ctx = makeFourProviderContext();
+    const config = createRoutingConfig(ctx);
+    const service = new RoutingService({
+      health: makeHealth({ brave: false, serpapi: false }),
+      config,
+    });
+
+    expect(() => service.selectProvider("search.images")).toThrow(RoutingError);
   });
 });
