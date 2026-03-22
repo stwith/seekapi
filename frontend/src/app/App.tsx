@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { Shell } from "@/components/layout/Shell.js";
 import { PageTransition } from "@/components/layout/PageTransition.js";
-import { Overview } from "@/routes/overview/Overview.js";
 import { ProjectList } from "@/routes/projects/ProjectList.js";
 import { ProjectDetailPage } from "@/routes/projects/ProjectDetail.js";
 import { FlowRunner } from "@/routes/flow-runner/FlowRunner.js";
@@ -46,8 +45,7 @@ export function App() {
       <Shell adminKey={adminKey} onLogout={() => handleSetAdminKey("")}>
         <ErrorBoundary>
           <Routes>
-            <Route path="/" element={<PageTransition><Overview adminKey={adminKey} /></PageTransition>} />
-            <Route path="/dashboard" element={<PageTransition><Dashboard adminKey={adminKey} /></PageTransition>} />
+            <Route path="/" element={<PageTransition><Dashboard adminKey={adminKey} /></PageTransition>} />
             <Route path="/projects" element={<PageTransition><ProjectList adminKey={adminKey} /></PageTransition>} />
             <Route path="/projects/:projectId" element={<PageTransition><ProjectDetailPage adminKey={adminKey} /></PageTransition>} />
             <Route path="/keys" element={<PageTransition><KeysPage adminKey={adminKey} /></PageTransition>} />

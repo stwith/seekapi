@@ -2,7 +2,6 @@ import { useState, useEffect, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  LayoutDashboard,
   BarChart3,
   FolderKanban,
   KeyRound,
@@ -34,8 +33,7 @@ import {
 } from "@/components/ui/shadcn/sheet";
 
 const NAV_ITEMS = [
-  { to: "/", labelKey: "nav.overview", icon: LayoutDashboard },
-  { to: "/dashboard", labelKey: "nav.dashboard", icon: BarChart3 },
+  { to: "/", labelKey: "nav.dashboard", icon: BarChart3 },
   { to: "/projects", labelKey: "nav.projects", icon: FolderKanban },
   { to: "/keys", labelKey: "nav.apiKeys", icon: KeyRound },
   { to: "/usage", labelKey: "nav.usage", icon: Activity },

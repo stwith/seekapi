@@ -11,7 +11,7 @@ import { App } from "../app/App.js";
 describe("App shell [AC1]", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    // Mock fetch so Overview's useEffect doesn't fire uncontrolled async updates
+    // Mock fetch so Dashboard's useEffect doesn't fire uncontrolled async updates
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
       if (url.includes("/admin/projects")) {
@@ -39,7 +39,6 @@ describe("App shell [AC1]", () => {
     });
     const nav = screen.getByTestId("nav-sidebar");
     expect(nav).toBeInTheDocument();
-    expect(nav.textContent).toContain("Overview");
     expect(nav.textContent).toContain("Dashboard");
     expect(nav.textContent).toContain("Projects");
     expect(nav.textContent).toContain("API Keys");
