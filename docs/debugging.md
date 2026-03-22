@@ -168,6 +168,9 @@ Symptoms: admin endpoints return unexpected errors.
 | `GET /v1/admin/projects/:id/quota` | Project quota config + current usage |
 | `PUT /v1/admin/projects/:id/quota` | Create/update quota limits |
 | `GET /v1/admin/quotas` | List all project quotas with usage |
+| `GET /v1/admin/stats/providers` | Per-provider request breakdown (`?projectId=&provider=`) |
+| `GET /v1/admin/providers` | Registered providers with capabilities |
+| `GET /v1/admin/projects/:id/credentials` | All active credentials for a project (multi-provider) |
 
 ### Per-Key Attribution
 
@@ -204,6 +207,7 @@ The frontend is a React + Vite app at `frontend/` with Tailwind CSS styling.
 | API Keys | `/keys` | Per-key usage stats across all projects |
 | Usage Records | `/usage` | Filterable, paginated request log |
 | Subscriptions | `/subscriptions` | Quota cards with edit modal |
+| Providers | `/providers` | Provider health, capabilities, and usage overview |
 | Flow Runner | `/flow-runner` | 10-step end-to-end Brave workflow test |
 
 ### Frontend Scripts

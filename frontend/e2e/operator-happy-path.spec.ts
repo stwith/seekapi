@@ -41,7 +41,7 @@ test.describe("Operator console happy path", () => {
 
     // 8. Assert project detail page shows the project name and key sections
     await expect(page.getByRole("heading", { name: projectName })).toBeVisible();
-    await expect(page.getByText("Brave Credential")).toBeVisible();
+    await expect(page.getByText("Provider Credentials")).toBeVisible();
     await expect(page.getByText("Capability Bindings")).toBeVisible();
     await expect(page.getByText("API Keys")).toBeVisible();
   });
@@ -65,7 +65,7 @@ test.describe("Operator console happy path", () => {
     await expect(page.getByRole("heading", { name: projectName })).toBeVisible();
 
     // Attach a Brave credential
-    await page.getByPlaceholder("Brave API secret").fill("BSA_fake_test_key");
+    await page.getByPlaceholder("API secret").fill("BSA_fake_test_key");
     await page.getByRole("button", { name: "Attach" }).click();
 
     // Wait for credential to show up

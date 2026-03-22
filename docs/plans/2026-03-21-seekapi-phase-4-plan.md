@@ -47,7 +47,7 @@ AC7: `bash scripts/validate.sh` remains the delivery gate and passes after each 
 
 ## Phase 4B: Third Provider Expansion (Kagi)
 
-**Status:** In Progress
+**Status:** Completed
 
 **Goal:** Extend Phase 4 to validate that the multi-provider architecture scales beyond two providers by adding Kagi as a third search provider with full error-envelope handling, routing, and fallback support.
 
@@ -159,7 +159,7 @@ Each provider-specific slice should also include targeted adapter tests and rout
 
 ## Phase 4C: SerpAPI (full capability coverage)
 
-**Status:** In Progress
+**Status:** Completed
 
 **Why third:** SerpAPI is the provider that completes full MVP capability coverage across `search.web`, `search.news`, and `search.images`, which makes it the strongest final proof that the canonical model can scale horizontally.
 
@@ -190,7 +190,7 @@ Each provider-specific slice should also include targeted adapter tests and rout
 
 ## Phase 4D: Operator Console Multi-Provider Support
 
-**Status:** In Progress
+**Status:** Completed
 
 **Goal:** Extend the existing operator console from Brave/Tavily/Kagi control to a true multi-provider management surface without creating a new frontend product boundary.
 
@@ -237,7 +237,7 @@ Each provider-specific slice should also include targeted adapter tests and rout
 
 ## Phase 4E: End-to-End Validation
 
-**Status:** Planned
+**Status:** In Progress
 
 ### Task 58: Multi-provider integration and E2E verification [AC2][AC3][AC4]
 
