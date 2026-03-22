@@ -1,4 +1,4 @@
-import type { KagiSearchParams, KagiSearchResponse } from "./schemas.js";
+import type { KagiSearchParams, KagiSearchResponse, KagiErrorObject } from "./schemas.js";
 import { ProviderError } from "../core/errors.js";
 
 const KAGI_API_BASE = "https://kagi.com/api/v0";
@@ -44,7 +44,19 @@ export class KagiClient {
       });
     }
 
-    return (await res.json()) as KagiSearchResponse;
+    const body = (await res.json()) as KagiSearchResponse;
+
+    if (body.error && body.error.length > 0) {
+      const first = body.error[0] as KagiErrorObject;
+      throw new ProviderError({
+        message: `Kagi API error: ${first.msg} (code ${first.code})`,
+        category: categorizeEnvelopeError(first.code),
+        provider: "kagi",
+        statusCode: res.status,
+      });
+    }
+
+    return body;
   }
 }
 
@@ -55,6 +67,16 @@ function categorizeStatus(
   if (status === 429) return "rate_limited";
   if (status >= 500) return "upstream_5xx";
   return "unknown";
+}
+
+function categorizeEnvelopeError(
+  code: number,
+): "bad_credential" | "rate_limited" | "invalid_request" | "unknown" {
+  // Kagi error codes: https://help.kagi.com/kagi/api/overview.html
+  if (code === 1) return "bad_credential"; // authentication error
+  if (code === 101) return "bad_credential"; // insufficient credit
+  if (code === 429) return "rate_limited";
+  return "invalid_request";
 }
 
 function categorizeNetworkError(err: unknown): "timeout" | "unknown" {

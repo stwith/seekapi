@@ -247,6 +247,88 @@ describe("KagiAdapter execute integration", () => {
   });
 });
 
+describe("KagiClient error envelope handling", () => {
+  function mockFetchEnvelopeError(errorPayload: unknown): () => void {
+    const original = globalThis.fetch;
+    globalThis.fetch = () =>
+      Promise.resolve(
+        new Response(JSON.stringify(errorPayload), { status: 200, headers: { "Content-Type": "application/json" } }),
+      );
+    return () => { globalThis.fetch = original; };
+  }
+
+  it("throws ProviderError for 200 response with insufficient credit error", async () => {
+    const restore = mockFetchEnvelopeError({
+      meta: { id: "abc", node: "us-east", ms: 0 },
+      data: null,
+      error: [{ code: 101, msg: "Insufficient credit" }],
+    });
+    try {
+      await expect(new KagiClient().search({ q: "test" }, "key")).rejects.toThrow(ProviderError);
+      try { await new KagiClient().search({ q: "test" }, "key"); } catch (err) {
+        const pe = err as ProviderError;
+        expect(pe.category).toBe("bad_credential");
+        expect(pe.message).toContain("Insufficient credit");
+        expect(pe.statusCode).toBe(200);
+        expect(pe.retryable).toBe(false);
+      }
+    } finally { restore(); }
+  });
+
+  it("throws ProviderError for 200 response with auth error", async () => {
+    const restore = mockFetchEnvelopeError({
+      meta: { id: "abc", node: "us-east", ms: 0 },
+      data: null,
+      error: [{ code: 1, msg: "Authentication error" }],
+    });
+    try {
+      try { await new KagiClient().search({ q: "test" }, "key"); } catch (err) {
+        const pe = err as ProviderError;
+        expect(pe.category).toBe("bad_credential");
+        expect(pe.message).toContain("Authentication error");
+      }
+    } finally { restore(); }
+  });
+
+  it("throws ProviderError for 200 response with malformed request error", async () => {
+    const restore = mockFetchEnvelopeError({
+      meta: { id: "abc", node: "us-east", ms: 0 },
+      data: null,
+      error: [{ code: 42, msg: "Malformed request" }],
+    });
+    try {
+      try { await new KagiClient().search({ q: "test" }, "key"); } catch (err) {
+        const pe = err as ProviderError;
+        expect(pe.category).toBe("invalid_request");
+        expect(pe.retryable).toBe(false);
+      }
+    } finally { restore(); }
+  });
+
+  it("does not throw when error array is empty", async () => {
+    const restore = mockFetchEnvelopeError({
+      meta: { id: "abc", node: "us-east", ms: 10 },
+      data: [{ t: 0, title: "OK", url: "https://example.com" }],
+      error: [],
+    });
+    try {
+      const result = await new KagiClient().search({ q: "test" }, "key");
+      expect(result.data).toHaveLength(1);
+    } finally { restore(); }
+  });
+
+  it("does not throw when error field is absent", async () => {
+    const restore = mockFetchEnvelopeError({
+      meta: { id: "abc", node: "us-east", ms: 10 },
+      data: [{ t: 0, title: "OK", url: "https://example.com" }],
+    });
+    try {
+      const result = await new KagiClient().search({ q: "test" }, "key");
+      expect(result.data).toHaveLength(1);
+    } finally { restore(); }
+  });
+});
+
 describe("KagiClient HTTP status classification", () => {
   function mockFetchStatus(status: number): () => void {
     const original = globalThis.fetch;

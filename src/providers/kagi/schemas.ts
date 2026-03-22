@@ -25,7 +25,14 @@ export interface KagiSearchMeta {
   api_balance?: number;
 }
 
+export interface KagiErrorObject {
+  code: number;
+  msg: string;
+  ref?: string;
+}
+
 export interface KagiSearchResponse {
   meta: KagiSearchMeta;
-  data: KagiSearchResult[];
+  data: KagiSearchResult[] | null;
+  error?: KagiErrorObject[];
 }
