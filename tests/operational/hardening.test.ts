@@ -292,10 +292,11 @@ describe("Health probe credential strategy [AC4]", () => {
 
       expect(res.statusCode).toBe(200);
       const body = res.json();
-      expect(body.providers).toHaveLength(1);
+      expect(body.providers.length).toBeGreaterThanOrEqual(1);
       // With a real credential, probe should succeed → "healthy" (not "unavailable")
-      expect(body.providers[0].provider).toBe("brave");
-      expect(body.providers[0].status).toBe("healthy");
+      const braveProvider = body.providers.find((p: { provider: string }) => p.provider === "brave");
+      expect(braveProvider).toBeDefined();
+      expect(braveProvider.status).toBe("healthy");
       // Verify credential was actually sent to the upstream
       expect(probeHeaders["X-Subscription-Token"]).toBeDefined();
 
@@ -322,8 +323,11 @@ describe("Health probe credential strategy [AC4]", () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.providers).toHaveLength(1);
-    expect(body.providers[0].status).toBe("unavailable");
+    expect(body.providers.length).toBeGreaterThanOrEqual(1);
+    // Without healthProbeProjectId, all providers should be "unavailable"
+    for (const p of body.providers) {
+      expect(p.status).toBe("unavailable");
+    }
 
     await app.close();
   });

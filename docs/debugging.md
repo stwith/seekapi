@@ -46,6 +46,7 @@ It covers system startup, data preparation, smoke checks, and common failure poi
 |---|---|---|
 | `ENCRYPTION_KEY` | Credential encryption at rest | **Required** |
 | `BRAVE_API_KEY` | Brave Search BYOK | Searches fail, health shows "unavailable" |
+| `TAVILY_API_KEY` | Tavily Search BYOK | Tavily searches fail, health shows "unavailable" |
 | `ADMIN_API_KEY` | Enables admin endpoints (`/v1/admin/*`) | Admin routes not registered |
 | `DATABASE_URL` | PostgreSQL for durable persistence | In-memory (data lost on restart) |
 | `REDIS_URL` | Redis for durable rate limiting | In-memory (graceful degradation if Redis dies) |
@@ -82,10 +83,18 @@ Symptoms: request rejected with 401 or 403.
 Symptoms: upstream timeout, provider unavailable, bad upstream credential.
 
 Check:
-- `BRAVE_API_KEY` is set and valid
+- `BRAVE_API_KEY` / `TAVILY_API_KEY` is set and valid
 - Provider credential decryption succeeds (`ENCRYPTION_KEY` matches)
 - `/v1/health/providers` shows provider status
 - Routing fallback classification in `src/modules/routing/service/error-classifier.ts`
+
+Provider capabilities:
+| Provider | Capabilities |
+|---|---|
+| `brave` | `search.web`, `search.news`, `search.images` |
+| `tavily` | `search.web` |
+
+Default seed routing for `search.web`: Brave (priority 0, default) → Tavily (priority 1, fallback).
 
 Error categories and their routing behavior:
 | Category | Retryable | Fallback? |
@@ -135,7 +144,7 @@ Symptoms: admin endpoints return unexpected errors.
 |---|---|---|
 | 404 on `/v1/admin/*` | `ADMIN_API_KEY` not set | Set `ADMIN_API_KEY` env var and restart |
 | 403 on admin endpoint | Wrong admin key | Verify `ADMIN_API_KEY` matches the Bearer token |
-| 400 "provider not supported" | Invalid provider name | Only `brave` is supported in the current phase |
+| 400 "provider not supported" | Invalid provider name | Allowed providers: `brave`, `tavily` |
 | 400 "capability not supported" | Invalid capability | Only `search.web`, `search.news`, `search.images` are supported |
 | 404 "Project not found" | Project ID doesn't exist or is inactive | Create a project first via `POST /v1/admin/projects` |
 | Disabled key still works | Key was disabled but previous auth was cached | Keys are looked up per-request; verify the disable call returned 200 |
