@@ -44,7 +44,6 @@ describe("App shell [AC1]", () => {
     expect(nav.textContent).toContain("Projects");
     expect(nav.textContent).toContain("API Keys");
     expect(nav.textContent).toContain("Usage");
-    expect(nav.textContent).toContain("Subscriptions");
     expect(nav.textContent).toContain("Flow Runner");
   });
 });

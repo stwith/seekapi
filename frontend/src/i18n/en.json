@@ -90,6 +90,7 @@
     "projectName": "Project Name",
     "newProjectPlaceholder": "New project name",
     "createProject": "Create Project",
+    "viewDetail": "Detail",
     "creating": "Creating...",
     "noProjects": "No projects yet. Create one above.",
     "notFound": "Project not found.",
