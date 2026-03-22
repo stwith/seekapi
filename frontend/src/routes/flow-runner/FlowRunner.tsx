@@ -8,6 +8,13 @@ import { FormField } from "@/components/ui/form-field.js";
 import { PageHeader } from "@/components/ui/page-header.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/shadcn/alert";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/shadcn/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -27,14 +34,17 @@ interface StepResult {
   timestamp?: string;
 }
 
+const PROVIDERS = ["brave", "tavily", "kagi", "serpapi"] as const;
+type ProviderType = (typeof PROVIDERS)[number];
+
 const STEP_COUNT = 10;
 
 export function FlowRunner({ adminKey }: FlowRunnerProps) {
   const { t } = useTranslation();
 
-  const getStepLabels = () => [
+  const getStepLabels = (provider: string) => [
     t("flowRunner.step1"),
-    t("flowRunner.step2"),
+    t("flowRunner.step2", { provider }),
     t("flowRunner.step3"),
     t("flowRunner.step4"),
     t("flowRunner.step5"),
@@ -49,8 +59,10 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
     Array.from({ length: STEP_COUNT }, () => ({ status: "pending" as const })),
   );
   const [running, setRunning] = useState(false);
-  const [braveSecret, setBraveSecret] = useState("");
-  const braveSecretRef = useRef("");
+  const [provider, setProvider] = useState<ProviderType>("brave");
+  const [apiSecret, setApiSecret] = useState("");
+  const apiSecretRef = useRef("");
+  const providerRef = useRef<ProviderType>("brave");
   const [searchQuery, setSearchQuery] = useState("seekapi test");
   const searchQueryRef = useRef("seekapi test");
 
@@ -61,7 +73,8 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
   );
 
   async function runFlow() {
-    if (!braveSecretRef.current.trim()) return;
+    if (!apiSecretRef.current.trim()) return;
+    const selectedProvider = providerRef.current;
     setRunning(true);
     setSteps(Array.from({ length: STEP_COUNT }, () => ({ status: "pending" as const })));
 
@@ -72,28 +85,33 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
     let currentStep = 0;
 
     try {
+      // Step 1: Create project
       currentStep = 0;
       updateStep(0, { status: "running" });
-      const project = await api.createProject(adminKey, `flow-test-${Date.now()}`);
+      const project = await api.createProject(adminKey, `flow-${selectedProvider}-${Date.now()}`);
       projectId = project.id;
       updateStep(0, { status: "success", detail: `Project: ${project.id}`, timestamp: new Date().toISOString() });
 
+      // Step 2: Attach credential
       currentStep = 1;
       updateStep(1, { status: "running" });
-      await api.upsertCredential(adminKey, projectId, "brave", braveSecretRef.current.trim());
-      updateStep(1, { status: "success", detail: "Brave credential attached", timestamp: new Date().toISOString() });
+      await api.upsertCredential(adminKey, projectId, selectedProvider, apiSecretRef.current.trim());
+      updateStep(1, { status: "success", detail: `${selectedProvider} credential attached`, timestamp: new Date().toISOString() });
 
+      // Step 3: Enable binding
       currentStep = 2;
       updateStep(2, { status: "running" });
-      await api.configureBinding(adminKey, projectId, { provider: "brave", capability: "search.web", enabled: true, priority: 0 });
+      await api.configureBinding(adminKey, projectId, { provider: selectedProvider, capability: "search.web", enabled: true, priority: 0 });
       updateStep(2, { status: "success", detail: "search.web enabled", timestamp: new Date().toISOString() });
 
+      // Step 4: Mint Key A
       currentStep = 3;
       updateStep(3, { status: "running" });
       const keyAResult = await api.createApiKey(adminKey, projectId);
       keyA = keyAResult.rawKey;
       updateStep(3, { status: "success", detail: `Key A: ${keyA.slice(0, 12)}...`, timestamp: new Date().toISOString() });
 
+      // Step 5: Mint Key B
       currentStep = 4;
       updateStep(4, { status: "running" });
       const keyBResult = await api.createApiKey(adminKey, projectId);
@@ -101,6 +119,7 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
       keyBId = keyBResult.id;
       updateStep(4, { status: "success", detail: `Key B: ${keyB.slice(0, 12)}...`, timestamp: new Date().toISOString() });
 
+      // Step 6: Search with Key A
       currentStep = 5;
       updateStep(5, { status: "running" });
       const searchA = await api.search(keyA, searchQueryRef.current);
@@ -112,6 +131,7 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
         return;
       }
 
+      // Step 7: Search with Key B
       currentStep = 6;
       updateStep(6, { status: "running" });
       const searchB = await api.search(keyB, searchQueryRef.current);
@@ -123,11 +143,13 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
         return;
       }
 
+      // Step 8: Disable Key B
       currentStep = 7;
       updateStep(7, { status: "running" });
       await api.disableApiKey(adminKey, keyBId);
       updateStep(7, { status: "success", detail: "Key B disabled", timestamp: new Date().toISOString() });
 
+      // Step 9: Verify Key B rejected
       currentStep = 8;
       updateStep(8, { status: "running" });
       const verifyB = await api.search(keyB, searchQueryRef.current);
@@ -139,6 +161,7 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
         return;
       }
 
+      // Step 10: Verify Key A still works
       currentStep = 9;
       updateStep(9, { status: "running" });
       const verifyA = await api.search(keyA, searchQueryRef.current);
@@ -160,20 +183,35 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
 
   const allDone = steps.every((s) => s.status === "success");
   const hasFailed = steps.some((s) => s.status === "failure");
-  const stepLabels = getStepLabels();
+  const stepLabels = getStepLabels(provider);
 
   return (
     <div>
       <PageHeader title={t("flowRunner.title")} subtitle={t("flowRunner.subtitle")} />
 
       <div className="mb-6 flex flex-wrap gap-4 items-end">
-        <FormField label={t("flowRunner.braveApiSecret")} htmlFor="brave-secret">
+        <FormField label={t("flowRunner.provider")}>
+          <Select
+            value={provider}
+            onValueChange={(v) => { setProvider(v as ProviderType); providerRef.current = v as ProviderType; }}
+          >
+            <SelectTrigger className="w-40" aria-label={t("flowRunner.provider")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PROVIDERS.map((p) => (
+                <SelectItem key={p} value={p}>{p}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+        <FormField label={t("flowRunner.apiSecret", { provider })} htmlFor="api-secret">
           <Input
-            id="brave-secret"
+            id="api-secret"
             type="password"
-            value={braveSecret}
-            onChange={(e) => { setBraveSecret(e.target.value); braveSecretRef.current = e.target.value; }}
-            placeholder={t("flowRunner.braveApiSecret")}
+            value={apiSecret}
+            onChange={(e) => { setApiSecret(e.target.value); apiSecretRef.current = e.target.value; }}
+            placeholder={t("flowRunner.apiSecretPlaceholder", { provider })}
             className="w-64"
           />
         </FormField>
