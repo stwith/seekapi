@@ -34,7 +34,7 @@ export function toProviderParams(req: CanonicalSearchRequest): SerpApiSearchPara
 const SOURCE_TYPE: Record<string, string> = {
   "search.web": "web",
   "search.news": "news",
-  "search.images": "images",
+  "search.images": "image",
 };
 
 export function toCanonicalItems(

@@ -253,7 +253,7 @@ describe("SerpAPI mapper", () => {
       url: "https://example.com/cat.jpg",
       snippet: "Example",
       publishedAt: null,
-      sourceType: "images",
+      sourceType: "image",
       score: null,
     });
   });
@@ -366,7 +366,7 @@ describe("SerpApiAdapter execute integration", () => {
       expect(result.provider).toBe("serpapi");
       expect(result.capability).toBe("search.images");
       expect(result.items).toHaveLength(1);
-      expect(result.items[0]?.sourceType).toBe("images");
+      expect(result.items[0]?.sourceType).toBe("image");
     } finally {
       globalThis.fetch = originalFetch;
     }
