@@ -68,7 +68,7 @@ Check:
 
 Symptoms: request rejected with 401 or 403.
 
-**Downstream API keys** (for `/v1/search/*`, `/v1/health/providers`):
+**Downstream API keys** (for `/v1/search/*`):
 - `Authorization: Bearer <key>` header present
 - API key matches `SEED_API_KEY` (default: `sk_test_seekapi_demo_key_001`) or a key minted via admin API
 - Key status is "active" in the repository
