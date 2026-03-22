@@ -338,10 +338,11 @@ describe("Admin read endpoints [Phase 3 AC4]", () => {
     expect(detail.bindings[0].capability).toBe("search.web");
     expect(detail.keys.length).toBe(1);
     expect(detail.keys[0].status).toBe("active");
-    // Credential metadata present without raw secret
-    expect(detail.credential).not.toBeNull();
-    expect(detail.credential.provider).toBe("brave");
-    expect(detail.credential.encryptedSecret).toBeUndefined();
+    // Credential metadata present without raw secret [Phase 4D AC6]
+    expect(detail.credentials).toBeInstanceOf(Array);
+    expect(detail.credentials.length).toBe(1);
+    expect(detail.credentials[0].provider).toBe("brave");
+    expect(detail.credentials[0].encryptedSecret).toBeUndefined();
   });
 
   it("returns 404 for non-existent project detail", async () => {
@@ -433,14 +434,16 @@ describe("Admin read endpoints [Phase 3 AC4]", () => {
     });
     expect(res.statusCode).toBe(200);
     const meta = res.json();
-    expect(meta.provider).toBe("brave");
-    expect(meta.status).toBe("active");
+    expect(Array.isArray(meta)).toBe(true);
+    expect(meta.length).toBe(1);
+    expect(meta[0].provider).toBe("brave");
+    expect(meta[0].status).toBe("active");
     // Must not contain encrypted secret
-    expect(meta.encryptedSecret).toBeUndefined();
-    expect(meta.secret).toBeUndefined();
+    expect(meta[0].encryptedSecret).toBeUndefined();
+    expect(meta[0].secret).toBeUndefined();
   });
 
-  it("returns null credential when none attached", async () => {
+  it("returns empty array when no credentials attached", async () => {
     const projRes = await app.inject({
       method: "POST",
       url: "/v1/admin/projects",
@@ -455,7 +458,56 @@ describe("Admin read endpoints [Phase 3 AC4]", () => {
       headers: { authorization: `Bearer ${ADMIN_KEY}` },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toBeNull();
+    expect(res.json()).toEqual([]);
+  });
+
+  it("returns multiple provider credentials for a project [Phase 4D AC6]", async () => {
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Multi Cred Project" },
+    });
+    const project = projRes.json();
+
+    // Attach credentials for two different providers
+    await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", secret: "BSA_multi_1" },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "tavily", secret: "tvly_multi_2" },
+    });
+
+    // Verify credentials list endpoint returns both
+    const credRes = await app.inject({
+      method: "GET",
+      url: `/v1/admin/projects/${project.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(credRes.statusCode).toBe(200);
+    const creds = credRes.json();
+    expect(Array.isArray(creds)).toBe(true);
+    expect(creds.length).toBe(2);
+    const providers = creds.map((c: { provider: string }) => c.provider).sort();
+    expect(providers).toEqual(["brave", "tavily"]);
+
+    // Verify project detail also returns both credentials
+    const detailRes = await app.inject({
+      method: "GET",
+      url: `/v1/admin/projects/${project.id}`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(detailRes.statusCode).toBe(200);
+    const detail = detailRes.json();
+    expect(detail.credentials.length).toBe(2);
+    const detailProviders = detail.credentials.map((c: { provider: string }) => c.provider).sort();
+    expect(detailProviders).toEqual(["brave", "tavily"]);
   });
 
   it("requires admin auth on read endpoints", async () => {

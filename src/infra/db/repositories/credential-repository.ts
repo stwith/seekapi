@@ -31,8 +31,8 @@ export interface CredentialRepository {
     projectId: string,
     provider: string,
   ): Promise<CredentialRow | undefined>;
-  /** Find credential metadata for a project (no raw secret). [Phase 3 AC4] */
-  findMetaByProject?(projectId: string): Promise<CredentialMeta | undefined>;
+  /** Find all active credential metadata for a project (no raw secret). [Phase 3 AC4][Phase 4D AC6] */
+  findMetaByProject?(projectId: string): Promise<CredentialMeta[]>;
   /** Upsert (attach or rotate) a credential for a project + provider. [AC3] */
   upsert?(row: CredentialRow): Promise<void>;
 }
@@ -59,12 +59,10 @@ export class InMemoryCredentialRepository implements CredentialRepository {
     );
   }
 
-  async findMetaByProject(projectId: string): Promise<CredentialMeta | undefined> {
-    const cred = this.credentials.find(
-      (c) => c.projectId === projectId && c.status === "active",
-    );
-    if (!cred) return undefined;
-    return { id: cred.id, projectId: cred.projectId, provider: cred.provider, status: cred.status };
+  async findMetaByProject(projectId: string): Promise<CredentialMeta[]> {
+    return this.credentials
+      .filter((c) => c.projectId === projectId && c.status === "active")
+      .map((c) => ({ id: c.id, projectId: c.projectId, provider: c.provider, status: c.status }));
   }
 
   async upsert(row: CredentialRow): Promise<void> {
@@ -112,8 +110,8 @@ export class DrizzleCredentialRepository implements CredentialRepository {
     return rows[0];
   }
 
-  async findMetaByProject(projectId: string): Promise<CredentialMeta | undefined> {
-    const rows = await this.db
+  async findMetaByProject(projectId: string): Promise<CredentialMeta[]> {
+    return this.db
       .select({
         id: providerCredentials.id,
         projectId: providerCredentials.projectId,
@@ -126,9 +124,7 @@ export class DrizzleCredentialRepository implements CredentialRepository {
           eq(providerCredentials.projectId, projectId),
           eq(providerCredentials.status, "active"),
         ),
-      )
-      .limit(1);
-    return rows[0];
+      );
   }
 
   async upsert(row: CredentialRow): Promise<void> {

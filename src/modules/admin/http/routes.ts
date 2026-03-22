@@ -13,6 +13,7 @@ function parseUsageFilters(query: Record<string, string>): {
   projectId?: string;
   apiKeyId?: string;
   capability?: string;
+  provider?: string;
   success?: boolean;
   from?: string;
   to?: string;
@@ -21,6 +22,7 @@ function parseUsageFilters(query: Record<string, string>): {
   if (query.projectId) filters.projectId = query.projectId;
   if (query.apiKeyId) filters.apiKeyId = query.apiKeyId;
   if (query.capability) filters.capability = query.capability;
+  if (query.provider) filters.provider = query.provider;
   if (query.success === "true") filters.success = true;
   else if (query.success === "false") filters.success = false;
   if (query.from) filters.from = query.from;
@@ -32,6 +34,8 @@ export interface AdminRouteDeps {
   adminService: AdminService;
   /** The expected ADMIN_API_KEY value for admin authentication. */
   adminApiKey: string;
+  /** Provider registry for registered provider listing. [Phase 4D AC6] */
+  registry?: { list(): { id: string; supportedCapabilities(): string[] }[] };
 }
 
 /**
@@ -393,6 +397,32 @@ export async function registerAdminRoutes(
     async (_req: FastifyRequest, reply: FastifyReply) => {
       const quotas = await adminService.listAllQuotas();
       return reply.send({ quotas });
+    },
+  );
+
+  // --- Provider stats breakdown [Phase 4D AC3] ---
+  app.get(
+    "/v1/admin/stats/providers",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const query = req.query as Record<string, string>;
+      const filters = parseUsageFilters(query);
+      const providers = await adminService.getProviderBreakdown(filters);
+      return reply.send({ providers });
+    },
+  );
+
+  // --- Registered providers list [Phase 4D AC6] ---
+  app.get(
+    "/v1/admin/providers",
+    { preHandler: checkAdminAuth },
+    async (_req: FastifyRequest, reply: FastifyReply) => {
+      const adapters = deps.registry?.list() ?? [];
+      const providers = adapters.map((a) => ({
+        id: a.id,
+        capabilities: a.supportedCapabilities(),
+      }));
+      return reply.send({ providers });
     },
   );
 

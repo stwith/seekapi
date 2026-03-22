@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../../lib/api.js";
-import type { ProjectDetail, CreateKeyResult } from "../../lib/types.js";
+import type { ProjectDetail, CreateKeyResult, ProviderInfo, CredentialMeta } from "../../lib/types.js";
 import { StatusBadge, LoadingSpinner } from "../../components/ui/index.js";
 
 interface ProjectDetailPageProps {
@@ -11,14 +11,19 @@ interface ProjectDetailPageProps {
 export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   const { projectId } = useParams<{ projectId: string }>();
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
+  const [credentials, setCredentials] = useState<CredentialMeta[]>([]);
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [selectedProvider, setSelectedProvider] = useState("");
   const [secret, setSecret] = useState("");
   const [credSubmitting, setCredSubmitting] = useState(false);
 
+  const [bindProvider, setBindProvider] = useState("");
   const [bindCap, setBindCap] = useState("search.web");
   const [bindEnabled, setBindEnabled] = useState(true);
+  const [bindPriority, setBindPriority] = useState(0);
 
   const [revealedKey, setRevealedKey] = useState<CreateKeyResult | null>(null);
   const [mintingKey, setMintingKey] = useState(false);
@@ -26,8 +31,17 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   const loadDetail = useCallback(async () => {
     if (!projectId) return;
     try {
-      const d = await api.getProjectDetail(adminKey, projectId);
+      const [d, provResult] = await Promise.all([
+        api.getProjectDetail(adminKey, projectId),
+        api.listProviders(adminKey).catch(() => ({ providers: [] })),
+      ]);
       setDetail(d);
+      setProviders(provResult.providers);
+      setCredentials(d.credentials ?? []);
+      if (provResult.providers.length > 0) {
+        setSelectedProvider((prev) => prev || provResult.providers[0]!.id);
+        setBindProvider((prev) => prev || provResult.providers[0]!.id);
+      }
       setError(null);
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -44,14 +58,14 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   if (error) return <p className="text-red-400">{error}</p>;
   if (!detail) return <p className="text-gray-500">Project not found.</p>;
 
-  const { project, bindings, keys, credential } = detail;
+  const { project, bindings, keys } = detail;
 
   async function handleAttachCredential(e: React.FormEvent) {
     e.preventDefault();
-    if (!projectId || !secret.trim()) return;
+    if (!projectId || !secret.trim() || !selectedProvider) return;
     setCredSubmitting(true);
     try {
-      await api.upsertCredential(adminKey, projectId, "brave", secret.trim());
+      await api.upsertCredential(adminKey, projectId, selectedProvider, secret.trim());
       setSecret("");
       await loadDetail();
     } catch (err: unknown) {
@@ -63,13 +77,13 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
 
   async function handleConfigureBinding(e: React.FormEvent) {
     e.preventDefault();
-    if (!projectId) return;
+    if (!projectId || !bindProvider) return;
     try {
       await api.configureBinding(adminKey, projectId, {
-        provider: "brave",
+        provider: bindProvider,
         capability: bindCap,
         enabled: bindEnabled,
-        priority: 0,
+        priority: bindPriority,
       });
       await loadDetail();
     } catch (err: unknown) {
@@ -109,23 +123,36 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
         <code className="text-xs bg-gray-800 px-1 py-0.5 rounded">{project.id}</code>
       </p>
 
-      {/* Credential */}
+      {/* Credentials — multi-provider */}
       <section className="mt-6">
-        <h2 className="text-lg font-semibold text-gray-200 mb-2">Brave Credential</h2>
-        {credential ? (
-          <p className="text-gray-300 text-sm">
-            Provider: <strong>{credential.provider}</strong> &middot; Status:{" "}
-            <strong>{credential.status}</strong> &middot; ID: <code className="text-xs">{credential.id}</code>
-          </p>
+        <h2 className="text-lg font-semibold text-gray-200 mb-2">Provider Credentials</h2>
+        {credentials.length > 0 ? (
+          <div className="space-y-1 mb-3">
+            {credentials.map((c) => (
+              <p key={c.id} className="text-gray-300 text-sm">
+                <strong>{c.provider}</strong> &middot; Status: {c.status} &middot; ID: <code className="text-xs">{c.id}</code>
+              </p>
+            ))}
+          </div>
         ) : (
-          <p className="text-gray-500 text-sm">No credential attached.</p>
+          <p className="text-gray-500 text-sm mb-3">No credentials attached.</p>
         )}
-        <form onSubmit={handleAttachCredential} className="mt-2 flex gap-2">
+        <form onSubmit={handleAttachCredential} className="flex gap-2 items-center">
+          <select
+            data-testid="credential-provider-select"
+            value={selectedProvider}
+            onChange={(e) => setSelectedProvider(e.target.value)}
+            className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
+          >
+            {providers.map((p) => (
+              <option key={p.id} value={p.id}>{p.id}</option>
+            ))}
+          </select>
           <input
             type="password"
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
-            placeholder="Brave API secret"
+            placeholder="API secret"
             className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 w-72"
           />
           <button
@@ -133,20 +160,20 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
             disabled={credSubmitting}
             className="px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded disabled:opacity-50"
           >
-            {credential ? "Rotate" : "Attach"}
+            Attach
           </button>
         </form>
       </section>
 
-      {/* Bindings */}
+      {/* Bindings — multi-provider */}
       <section className="mt-6">
         <h2 className="text-lg font-semibold text-gray-200 mb-2">Capability Bindings</h2>
         {bindings.length === 0 && <p className="text-gray-500 text-sm">No bindings configured.</p>}
         <table data-testid="bindings-table" className="text-sm text-left mb-3">
           <thead>
             <tr className="text-gray-400 uppercase text-xs">
-              <th className="pr-6 py-1.5 font-medium">Capability</th>
               <th className="pr-6 py-1.5 font-medium">Provider</th>
+              <th className="pr-6 py-1.5 font-medium">Capability</th>
               <th className="pr-6 py-1.5 font-medium">Enabled</th>
               <th className="pr-6 py-1.5 font-medium">Priority</th>
             </tr>
@@ -154,15 +181,25 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
           <tbody className="divide-y divide-gray-800">
             {bindings.map((b) => (
               <tr key={`${b.provider}-${b.capability}`}>
-                <td className="pr-6 py-1.5 text-gray-300">{b.capability}</td>
                 <td className="pr-6 py-1.5 text-gray-300">{b.provider}</td>
+                <td className="pr-6 py-1.5 text-gray-300">{b.capability}</td>
                 <td className="pr-6 py-1.5">{b.enabled ? "Yes" : "No"}</td>
                 <td className="pr-6 py-1.5">{b.priority}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <form onSubmit={handleConfigureBinding} className="flex gap-2 items-center">
+        <form onSubmit={handleConfigureBinding} className="flex gap-2 items-center flex-wrap">
+          <select
+            data-testid="binding-provider-select"
+            value={bindProvider}
+            onChange={(e) => setBindProvider(e.target.value)}
+            className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
+          >
+            {providers.map((p) => (
+              <option key={p.id} value={p.id}>{p.id}</option>
+            ))}
+          </select>
           <select
             value={bindCap}
             onChange={(e) => setBindCap(e.target.value)}
@@ -172,6 +209,13 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
             <option value="search.news">search.news</option>
             <option value="search.images">search.images</option>
           </select>
+          <input
+            type="number"
+            value={bindPriority}
+            onChange={(e) => setBindPriority(parseInt(e.target.value, 10) || 0)}
+            className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200 w-16"
+            title="Priority"
+          />
           <label className="flex items-center gap-1 text-sm text-gray-300">
             <input
               type="checkbox"

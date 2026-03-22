@@ -156,6 +156,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     await registerAdminRoutes(app, {
       adminService,
       adminApiKey: opts.adminApiKey,
+      registry,
     });
   }
 

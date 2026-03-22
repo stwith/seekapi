@@ -190,7 +190,7 @@ Each provider-specific slice should also include targeted adapter tests and rout
 
 ## Phase 4D: Operator Console Multi-Provider Support
 
-**Status:** Planned
+**Status:** In Progress
 
 **Goal:** Extend the existing operator console from Brave/Tavily/Kagi control to a true multi-provider management surface without creating a new frontend product boundary.
 

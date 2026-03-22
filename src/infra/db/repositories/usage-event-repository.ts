@@ -18,6 +18,7 @@ export interface UsageQueryFilters {
   projectId?: string;
   apiKeyId?: string;
   capability?: string;
+  provider?: string;
   success?: boolean;
   from?: string; // ISO date
   to?: string;   // ISO date
@@ -53,6 +54,15 @@ export interface CapabilityBreakdown {
   count: number;
 }
 
+/** Provider breakdown entry. [Phase 4D AC3] */
+export interface ProviderBreakdown {
+  provider: string;
+  requestCount: number;
+  successCount: number;
+  failureCount: number;
+  avgLatencyMs: number;
+}
+
 /** Per-key stats entry. */
 export interface KeyUsageStats {
   apiKeyId: string;
@@ -75,6 +85,8 @@ export interface UsageEventRepository extends UsageEventSink {
   topCapabilities?(filters: UsageQueryFilters): Promise<CapabilityBreakdown[]>;
   /** Per-key usage stats. [Phase 3.5 AC6] */
   perKeyStats?(projectId: string): Promise<KeyUsageStats[]>;
+  /** Per-provider breakdown. [Phase 4D AC3] */
+  providerStats?(filters: UsageQueryFilters): Promise<ProviderBreakdown[]>;
 }
 
 /**
@@ -98,6 +110,7 @@ export class InMemoryUsageEventRepository implements UsageEventRepository {
       if (filters.projectId && e.projectId !== filters.projectId) return false;
       if (filters.apiKeyId && e.apiKeyId !== filters.apiKeyId) return false;
       if (filters.capability && e.capability !== filters.capability) return false;
+      if (filters.provider && e.provider !== filters.provider) return false;
       if (filters.success !== undefined && e.success !== filters.success) return false;
       if (filters.from) {
         const ts = this.timestamps.get(e.requestId);
@@ -186,6 +199,25 @@ export class InMemoryUsageEventRepository implements UsageEventRepository {
       avgLatencyMs: events.reduce((sum, e) => sum + e.latencyMs, 0) / events.length,
     }));
   }
+
+  async providerStats(filters: UsageQueryFilters): Promise<ProviderBreakdown[]> {
+    const filtered = this.applyFilters(filters);
+    const byProvider = new Map<string, UsageEvent[]>();
+    for (const event of filtered) {
+      const list = byProvider.get(event.provider) ?? [];
+      list.push(event);
+      byProvider.set(event.provider, list);
+    }
+    return [...byProvider.entries()]
+      .map(([provider, events]) => ({
+        provider,
+        requestCount: events.length,
+        successCount: events.filter((e) => e.success).length,
+        failureCount: events.filter((e) => !e.success).length,
+        avgLatencyMs: events.reduce((sum, e) => sum + e.latencyMs, 0) / events.length,
+      }))
+      .sort((a, b) => b.requestCount - a.requestCount);
+  }
 }
 
 /**
@@ -250,6 +282,7 @@ export class DrizzleUsageEventRepository implements UsageEventRepository {
     if (filters.projectId) conditions.push(eq(usageEvents.projectId, filters.projectId));
     if (filters.apiKeyId) conditions.push(eq(usageEvents.apiKeyId, filters.apiKeyId));
     if (filters.capability) conditions.push(eq(usageEvents.capability, filters.capability));
+    if (filters.provider) conditions.push(eq(usageEvents.provider, filters.provider));
     if (filters.success !== undefined) conditions.push(eq(usageEvents.success, filters.success));
     if (filters.from) conditions.push(gte(usageEvents.createdAt, new Date(filters.from)));
     if (filters.to) conditions.push(lte(usageEvents.createdAt, new Date(filters.to)));
@@ -283,6 +316,7 @@ export class DrizzleUsageEventRepository implements UsageEventRepository {
     if (filters.projectId) conditions.push(eq(usageEvents.projectId, filters.projectId));
     if (filters.apiKeyId) conditions.push(eq(usageEvents.apiKeyId, filters.apiKeyId));
     if (filters.capability) conditions.push(eq(usageEvents.capability, filters.capability));
+    if (filters.provider) conditions.push(eq(usageEvents.provider, filters.provider));
     if (filters.success !== undefined) conditions.push(eq(usageEvents.success, filters.success));
     if (filters.from) conditions.push(gte(usageEvents.createdAt, new Date(filters.from)));
     if (filters.to) conditions.push(lte(usageEvents.createdAt, new Date(filters.to)));
@@ -376,6 +410,37 @@ export class DrizzleUsageEventRepository implements UsageEventRepository {
 
     return rows.map((r) => ({
       apiKeyId: r.apiKeyId,
+      requestCount: r.requestCount,
+      successCount: Number(r.successCount),
+      failureCount: Number(r.failureCount),
+      avgLatencyMs: Number(r.avgLatencyMs ?? 0),
+    }));
+  }
+
+  async providerStats(filters: UsageQueryFilters): Promise<ProviderBreakdown[]> {
+    const { and, eq, gte, lte, count, avg, sql, desc } = await import("drizzle-orm");
+    const conditions = [];
+    if (filters.projectId) conditions.push(eq(usageEvents.projectId, filters.projectId));
+    if (filters.from) conditions.push(gte(usageEvents.createdAt, new Date(filters.from)));
+    if (filters.to) conditions.push(lte(usageEvents.createdAt, new Date(filters.to)));
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const rows = await this.db
+      .select({
+        provider: usageEvents.provider,
+        requestCount: count(),
+        successCount: sql<number>`count(*) filter (where ${usageEvents.success} = true)`,
+        failureCount: sql<number>`count(*) filter (where ${usageEvents.success} = false)`,
+        avgLatencyMs: avg(usageEvents.latencyMs),
+      })
+      .from(usageEvents)
+      .where(where)
+      .groupBy(usageEvents.provider)
+      .orderBy(desc(count()));
+
+    return rows.map((r) => ({
+      provider: r.provider,
       requestCount: r.requestCount,
       successCount: Number(r.successCount),
       failureCount: Number(r.failureCount),

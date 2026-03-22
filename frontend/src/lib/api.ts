@@ -58,7 +58,7 @@ export interface ProjectDetail {
   project: Project;
   bindings: ProviderBinding[];
   keys: ApiKeyInfo[];
-  credential: CredentialMeta | null;
+  credentials: CredentialMeta[];
 }
 
 export interface ProviderBinding {
@@ -140,6 +140,19 @@ export interface KeyUsageStats {
   avgLatencyMs: number;
 }
 
+export interface ProviderBreakdown {
+  provider: string;
+  requestCount: number;
+  successCount: number;
+  failureCount: number;
+  avgLatencyMs: number;
+}
+
+export interface ProviderInfo {
+  id: string;
+  capabilities: string[];
+}
+
 export interface AuditEntry {
   projectId: string;
   actorType: string;
@@ -181,7 +194,7 @@ export const api = {
   },
 
   getCredentialMeta(adminKey: string, projectId: string) {
-    return request<CredentialMeta | null>(`/v1/admin/projects/${projectId}/credentials`, { adminKey });
+    return request<CredentialMeta[]>(`/v1/admin/projects/${projectId}/credentials`, { adminKey });
   },
 
   // Mutation endpoints (existing)
@@ -255,6 +268,16 @@ export const api = {
   queryAuditLogs(adminKey: string, params?: Record<string, string>) {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
     return request<PaginatedResult<AuditEntry>>(`/v1/admin/audit${qs}`, { adminKey });
+  },
+
+  // Provider endpoints [Phase 4D]
+  getProviderBreakdown(adminKey: string, params?: Record<string, string>) {
+    const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+    return request<{ providers: ProviderBreakdown[] }>(`/v1/admin/stats/providers${qs}`, { adminKey });
+  },
+
+  listProviders(adminKey: string) {
+    return request<{ providers: ProviderInfo[] }>("/v1/admin/providers", { adminKey });
   },
 
   // Quota endpoints [Task 38]

@@ -9,6 +9,7 @@ import { Dashboard } from "../routes/dashboard/Dashboard.js";
 import { KeysPage } from "../routes/keys/KeysPage.js";
 import { UsagePage } from "../routes/usage/UsagePage.js";
 import { SubscriptionsPage } from "../routes/subscriptions/SubscriptionsPage.js";
+import { ProvidersPage } from "../routes/providers/ProvidersPage.js";
 import { ErrorBoundary } from "../components/ui/index.js";
 
 export function App() {
@@ -40,6 +41,7 @@ export function App() {
           <Route path="/projects/:projectId" element={<ProjectDetailPage adminKey={adminKey} />} />
           <Route path="/keys" element={<KeysPage adminKey={adminKey} />} />
           <Route path="/usage" element={<UsagePage adminKey={adminKey} />} />
+          <Route path="/providers" element={<ProvidersPage adminKey={adminKey} />} />
           <Route path="/subscriptions" element={<SubscriptionsPage adminKey={adminKey} />} />
           <Route path="/flow-runner" element={<FlowRunner adminKey={adminKey} />} />
           <Route path="*" element={<Navigate to="/" replace />} />

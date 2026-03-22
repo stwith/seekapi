@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../lib/api.js";
-import type { DashboardStats, TimeSeriesPoint, CapabilityBreakdown, Project } from "../../lib/api.js";
+import type { DashboardStats, TimeSeriesPoint, CapabilityBreakdown, ProviderBreakdown, Project } from "../../lib/api.js";
 import { StatCard, LoadingSpinner } from "../../components/ui/index.js";
 
 interface DashboardProps {
@@ -11,6 +11,7 @@ export function Dashboard({ adminKey }: DashboardProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [series, setSeries] = useState<TimeSeriesPoint[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilityBreakdown[]>([]);
+  const [providerBreakdown, setProviderBreakdown] = useState<ProviderBreakdown[]>([]);
   const [activeKeyCount, setActiveKeyCount] = useState(0);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState("");
@@ -28,14 +29,16 @@ export function Dashboard({ adminKey }: DashboardProps) {
       const params: Record<string, string> = {};
       if (selectedProject) params.projectId = selectedProject;
 
-      const [s, ts, cb] = await Promise.all([
+      const [s, ts, cb, pb] = await Promise.all([
         api.getDashboardStats(adminKey, Object.keys(params).length > 0 ? params : undefined),
         api.getTimeSeries(adminKey, { granularity: "hour", ...params }),
         api.getCapabilityBreakdown(adminKey, Object.keys(params).length > 0 ? params : undefined),
+        api.getProviderBreakdown(adminKey, Object.keys(params).length > 0 ? params : undefined),
       ]);
       setStats(s);
       setSeries(ts.series);
       setCapabilities(cb.capabilities);
+      setProviderBreakdown(pb.providers);
       setError(null);
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -134,6 +137,25 @@ export function Dashboard({ adminKey }: DashboardProps) {
                 </div>
               );
             })}
+          </div>
+        )}
+      </section>
+
+      {/* Provider breakdown */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold text-gray-200 mb-3">Provider Breakdown</h2>
+        {providerBreakdown.length === 0 ? (
+          <p className="text-gray-500 text-sm">No data yet.</p>
+        ) : (
+          <div data-testid="provider-breakdown" className="space-y-2">
+            {providerBreakdown.map((pb) => (
+              <div key={pb.provider} className="flex items-center justify-between bg-gray-800 rounded px-4 py-2">
+                <span className="text-sm text-gray-300">{pb.provider}</span>
+                <span className="text-sm text-gray-400">
+                  {pb.requestCount} reqs &middot; {pb.successCount} ok &middot; {Math.round(pb.avgLatencyMs)}ms avg
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </section>

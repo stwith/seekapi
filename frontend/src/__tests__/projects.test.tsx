@@ -22,6 +22,7 @@ vi.mock("../lib/api.js", () => ({
     configureBinding: vi.fn(),
     createApiKey: vi.fn(),
     disableApiKey: vi.fn(),
+    listProviders: vi.fn(),
   },
 }));
 
@@ -43,6 +44,7 @@ const mockApi = api as unknown as {
   configureBinding: ReturnType<typeof vi.fn>;
   createApiKey: ReturnType<typeof vi.fn>;
   disableApiKey: ReturnType<typeof vi.fn>;
+  listProviders: ReturnType<typeof vi.fn>;
 };
 
 describe("ProjectList [AC2]", () => {
@@ -98,6 +100,11 @@ describe("ProjectList [AC2]", () => {
 describe("ProjectDetailPage [AC2]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listProviders.mockResolvedValue({
+      providers: [
+        { id: "brave", capabilities: ["search.web", "search.news", "search.images"] },
+      ],
+    });
   });
 
   it("renders project detail with bindings, keys, and credential", async () => {
@@ -105,7 +112,7 @@ describe("ProjectDetailPage [AC2]", () => {
       project: { id: "proj-1", name: "Test Project", status: "active" },
       bindings: [{ provider: "brave", capability: "search.web", enabled: true, priority: 0 }],
       keys: [{ id: "key-1", projectId: "proj-1", status: "active" }],
-      credential: { id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" },
+      credentials: [{ id: "cred-1", projectId: "proj-1", provider: "brave", status: "active" }],
     });
 
     render(
@@ -123,8 +130,8 @@ describe("ProjectDetailPage [AC2]", () => {
       // Keys section
       expect(screen.getByTestId("keys-table")).toBeInTheDocument();
       expect(screen.getByText("key-1")).toBeInTheDocument();
-      // Credential section — "brave" appears multiple times, check via heading
-      expect(screen.getByText("Brave Credential")).toBeInTheDocument();
+      // Credential section — "brave" appears multiple times
+      expect(screen.getByText("Provider Credentials")).toBeInTheDocument();
       expect(screen.getByText("cred-1")).toBeInTheDocument();
     });
   });
@@ -134,7 +141,7 @@ describe("ProjectDetailPage [AC2]", () => {
       project: { id: "proj-1", name: "Empty Project", status: "active" },
       bindings: [],
       keys: [],
-      credential: null,
+      credentials: [],
     });
 
     render(
@@ -144,7 +151,7 @@ describe("ProjectDetailPage [AC2]", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("No credential attached.")).toBeInTheDocument();
+      expect(screen.getByText("No credentials attached.")).toBeInTheDocument();
     });
   });
 });
