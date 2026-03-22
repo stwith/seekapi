@@ -8,7 +8,6 @@ import {
   KeyRound,
   Activity,
   Plug,
-  CreditCard,
   Play,
   LogOut,
   Menu,
@@ -41,7 +40,6 @@ const NAV_ITEMS = [
   { to: "/keys", labelKey: "nav.apiKeys", icon: KeyRound },
   { to: "/usage", labelKey: "nav.usage", icon: Activity },
   { to: "/providers", labelKey: "nav.providers", icon: Plug },
-  { to: "/subscriptions", labelKey: "nav.subscriptions", icon: CreditCard },
   { to: "/flow-runner", labelKey: "nav.flowRunner", icon: Play },
 ];
 

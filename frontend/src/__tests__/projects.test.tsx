@@ -23,6 +23,8 @@ vi.mock("../lib/api.js", () => ({
     createApiKey: vi.fn(),
     disableApiKey: vi.fn(),
     listProviders: vi.fn(),
+    listQuotas: vi.fn(),
+    listProjectKeys: vi.fn(),
     listGlobalCredentials: vi.fn(),
     listProjectCredentialRefs: vi.fn(),
     addProjectCredentialRef: vi.fn(),
@@ -49,6 +51,8 @@ const mockApi = api as unknown as {
   createApiKey: ReturnType<typeof vi.fn>;
   disableApiKey: ReturnType<typeof vi.fn>;
   listProviders: ReturnType<typeof vi.fn>;
+  listQuotas: ReturnType<typeof vi.fn>;
+  listProjectKeys: ReturnType<typeof vi.fn>;
   listGlobalCredentials: ReturnType<typeof vi.fn>;
   listProjectCredentialRefs: ReturnType<typeof vi.fn>;
   addProjectCredentialRef: ReturnType<typeof vi.fn>;
@@ -58,6 +62,8 @@ const mockApi = api as unknown as {
 describe("ProjectList [AC2]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.listQuotas.mockResolvedValue({ quotas: [] });
+    mockApi.listProjectKeys.mockResolvedValue([]);
   });
 
   it("renders fetched projects", async () => {

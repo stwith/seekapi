@@ -11,7 +11,6 @@ import { FlowRunner } from "@/routes/flow-runner/FlowRunner.js";
 import { Dashboard } from "@/routes/dashboard/Dashboard.js";
 import { KeysPage } from "@/routes/keys/KeysPage.js";
 import { UsagePage } from "@/routes/usage/UsagePage.js";
-import { SubscriptionsPage } from "@/routes/subscriptions/SubscriptionsPage.js";
 import { ProvidersPage } from "@/routes/providers/ProvidersPage.js";
 import { ErrorBoundary } from "@/components/ui/error-boundary.js";
 import { Input } from "@/components/ui/shadcn/input";
@@ -54,7 +53,6 @@ export function App() {
             <Route path="/keys" element={<PageTransition><KeysPage adminKey={adminKey} /></PageTransition>} />
             <Route path="/usage" element={<PageTransition><UsagePage adminKey={adminKey} /></PageTransition>} />
             <Route path="/providers" element={<PageTransition><ProvidersPage adminKey={adminKey} /></PageTransition>} />
-            <Route path="/subscriptions" element={<PageTransition><SubscriptionsPage adminKey={adminKey} /></PageTransition>} />
             <Route path="/flow-runner" element={<PageTransition><FlowRunner adminKey={adminKey} /></PageTransition>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
