@@ -78,6 +78,7 @@ export function bootstrapFromEnv(): BootstrapResult {
     project: { id: seedProjectId, name: seedProjectName, status: "active" },
     bindings: [
       { provider: "brave", capability: "search.web", enabled: true, priority: 0 },
+      { provider: "tavily", capability: "search.web", enabled: true, priority: 1 },
       { provider: "brave", capability: "search.news", enabled: true, priority: 0 },
       { provider: "brave", capability: "search.images", enabled: true, priority: 0 },
     ],
@@ -92,6 +93,17 @@ export function bootstrapFromEnv(): BootstrapResult {
       projectId: seedProjectId,
       provider: "brave",
       encryptedSecret: encryptSecret(braveKey, encryptionKey),
+      status: "active",
+    });
+  }
+
+  const tavilyKey = process.env["TAVILY_API_KEY"];
+  if (tavilyKey) {
+    credentialRepository.seed({
+      id: "cred_seed_002",
+      projectId: seedProjectId,
+      provider: "tavily",
+      encryptedSecret: encryptSecret(tavilyKey, encryptionKey),
       status: "active",
     });
   }
