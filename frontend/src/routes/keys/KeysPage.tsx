@@ -1,8 +1,32 @@
 import { useEffect, useState, useCallback } from "react";
-import { api } from "../../lib/api.js";
-import type { Project, ApiKeyInfo } from "../../lib/api.js";
-import { DataTable, LoadingSpinner, EmptyState, StatusBadge, ConfirmDialog } from "../../components/ui/index.js";
-import type { Column } from "../../components/ui/index.js";
+import { useTranslation } from "react-i18next";
+import { api } from "@/lib/api.js";
+import type { Project, ApiKeyInfo } from "@/lib/api.js";
+import { StatusBadge } from "@/components/ui/status-badge.js";
+import { EmptyState } from "@/components/ui/empty-state.js";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog.js";
+import { LoadingSpinner } from "@/components/ui/loading-skeleton.js";
+import { Button } from "@/components/ui/shadcn/button";
+import { Alert, AlertDescription } from "@/components/ui/shadcn/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/shadcn/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/shadcn/table";
+import { AlertCircle, Copy, KeyRound } from "lucide-react";
+import { FormField } from "@/components/ui/form-field.js";
+import { PageHeader } from "@/components/ui/page-header.js";
+import { formatDate } from "@/lib/format.js";
 
 interface KeysPageProps {
   adminKey: string;
@@ -12,12 +36,8 @@ interface KeyRow extends ApiKeyInfo {
   projectName: string;
 }
 
-function formatDate(iso?: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString();
-}
-
 export function KeysPage({ adminKey }: KeysPageProps) {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<KeyRow[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +52,6 @@ export function KeysPage({ adminKey }: KeysPageProps) {
     try {
       const projs = await api.listProjects(adminKey);
       setProjects(projs);
-
       const allRows: KeyRow[] = [];
       await Promise.all(
         projs.map(async (p: Project) => {
@@ -41,12 +60,9 @@ export function KeysPage({ adminKey }: KeysPageProps) {
             for (const k of keys) {
               allRows.push({ ...k, projectName: p.name });
             }
-          } catch {
-            // skip projects with no keys
-          }
+          } catch { /* skip */ }
         }),
       );
-
       setRows(allRows);
       setError(null);
     } catch (e: unknown) {
@@ -56,9 +72,7 @@ export function KeysPage({ adminKey }: KeysPageProps) {
     }
   }, [adminKey]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   async function handleMint() {
     if (!selectedProject) return;
@@ -93,97 +107,105 @@ export function KeysPage({ adminKey }: KeysPageProps) {
     }).catch(() => {});
   }
 
-  const columns: Column<KeyRow>[] = [
-    { key: "id", header: "Key ID", render: (r) => <code className="text-xs">{r.id}</code> },
-    { key: "project", header: "Project", render: (r) => <span className="text-gray-300">{r.projectName}</span> },
-    {
-      key: "status",
-      header: "Status",
-      render: (r) => <StatusBadge variant={r.status === "active" ? "active" : "error"} label={r.status} />,
-    },
-    { key: "createdAt", header: "Created", render: (r) => <span className="text-xs text-gray-400">{formatDate(r.createdAt)}</span> },
-    { key: "lastUsedAt", header: "Last Used", render: (r) => <span className="text-xs text-gray-400">{formatDate(r.lastUsedAt)}</span> },
-    {
-      key: "actions",
-      header: "Actions",
-      render: (r) =>
-        r.status === "active" ? (
-          <button
-            onClick={() => setDisablingId(r.id)}
-            className="px-2 py-1 text-xs bg-red-900/50 hover:bg-red-800 text-red-300 rounded"
-          >
-            Disable
-          </button>
-        ) : (
-          <span className="text-xs text-gray-600">Disabled</span>
-        ),
-    },
-  ];
-
-  if (loading) return <LoadingSpinner label="Loading keys..." />;
-  if (error && rows.length === 0) return <p className="text-red-400">{error}</p>;
+  if (loading) return <LoadingSpinner label={t("keys.loadingKeys")} />;
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-white mb-4">API Keys</h1>
+      <PageHeader title={t("keys.title")} />
 
-      {/* Mint new key */}
-      <div data-testid="mint-section" className="flex gap-3 items-center mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-        <select
-          value={selectedProject}
-          onChange={(e) => setSelectedProject(e.target.value)}
-          className="bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
-        >
-          <option value="">Select project...</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-        <button
-          onClick={handleMint}
-          disabled={!selectedProject || minting}
-          className="px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded disabled:opacity-50"
-        >
-          {minting ? "Creating..." : "Mint New Key"}
-        </button>
+      {/* Mint section */}
+      <div data-testid="mint-section" className="flex gap-4 items-end mb-6 border border-border rounded-lg p-4">
+        <FormField label={t("keys.project")}>
+          <Select value={selectedProject || "__none__"} onValueChange={(v) => setSelectedProject(v === "__none__" ? "" : v)}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder={t("common.selectProject")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__" disabled>{t("common.selectProject")}</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+        <Button onClick={handleMint} disabled={!selectedProject || minting}>
+          <KeyRound className="size-3.5 mr-1.5" />
+          {minting ? t("keys.creating") : t("keys.mintNewKey")}
+        </Button>
       </div>
 
-      {/* Reveal-once display */}
+      {/* Revealed key */}
       {revealedKey && (
-        <div data-testid="revealed-key" className="mb-6 p-4 bg-green-900/30 border border-green-700 rounded-lg">
-          <p className="text-sm text-green-300 mb-2">New API key created. Copy it now — it won&apos;t be shown again.</p>
-          <div className="flex items-center gap-2">
-            <code className="text-sm bg-gray-900 px-3 py-1.5 rounded text-green-200 flex-1 overflow-x-auto">{revealedKey}</code>
-            <button
-              onClick={() => copyToClipboard(revealedKey)}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-sm rounded text-gray-200 shrink-0"
-            >
-              {copied ? "Copied!" : "Copy"}
-            </button>
-          </div>
-          <button
-            onClick={() => setRevealedKey(null)}
-            className="mt-2 text-xs text-gray-400 hover:text-gray-200"
-          >
-            Dismiss
-          </button>
-        </div>
+        <Alert data-testid="revealed-key" className="mb-6 border-emerald-600/50">
+          <KeyRound className="size-4 text-emerald-500" />
+          <AlertDescription>
+            <p className="text-sm text-emerald-400 mb-2">{t("keys.newKeyCreated")}</p>
+            <div className="flex items-center gap-2">
+              <code className="text-sm font-mono bg-muted px-3 py-1.5 rounded flex-1 overflow-x-auto">{revealedKey}</code>
+              <Button size="sm" variant="outline" onClick={() => copyToClipboard(revealedKey)}>
+                <Copy className="size-3 mr-1" />
+                {copied ? t("common.copied") : t("common.copy")}
+              </Button>
+            </div>
+            <Button size="sm" variant="ghost" className="mt-2" onClick={() => setRevealedKey(null)}>
+              {t("common.dismiss")}
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
-      {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {rows.length === 0 ? (
-        <EmptyState message="No API keys yet. Select a project and mint a new key." />
+        <EmptyState message={t("keys.noKeys")} />
       ) : (
-        <DataTable columns={columns} rows={rows} rowKey={(r) => `${r.projectId}-${r.id}`} />
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("keys.keyId")}</TableHead>
+              <TableHead>{t("keys.project")}</TableHead>
+              <TableHead>{t("common.status")}</TableHead>
+              <TableHead>{t("keys.created")}</TableHead>
+              <TableHead>{t("keys.lastUsed")}</TableHead>
+              <TableHead className="w-24">{t("common.actions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={`${r.projectId}-${r.id}`} className="transition-colors hover:bg-muted/50">
+                <TableCell className="font-mono text-xs">{r.id}</TableCell>
+                <TableCell>{r.projectName}</TableCell>
+                <TableCell>
+                  <StatusBadge variant={r.status === "active" ? "active" : "error"} label={r.status} />
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">{formatDate(r.createdAt)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{formatDate(r.lastUsedAt)}</TableCell>
+                <TableCell>
+                  {r.status === "active" ? (
+                    <Button size="sm" variant="destructive" onClick={() => setDisablingId(r.id)}>
+                      {t("common.disable")}
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{t("common.disabled")}</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
-      {/* Disable confirmation */}
       <ConfirmDialog
         open={disablingId !== null}
-        title="Disable API Key"
-        message={`Are you sure you want to disable key ${disablingId?.slice(0, 12)}...? This action cannot be undone.`}
-        confirmLabel="Disable"
+        title={t("keys.disableTitle")}
+        message={t("keys.disableMessage", { keyId: disablingId?.slice(0, 12) + "..." })}
+        confirmLabel={t("common.disable")}
+        variant="destructive"
         onConfirm={handleDisable}
         onCancel={() => setDisablingId(null)}
       />

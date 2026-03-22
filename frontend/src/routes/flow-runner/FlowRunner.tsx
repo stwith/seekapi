@@ -1,6 +1,21 @@
 import { useState, useCallback, useRef } from "react";
-import { api } from "../../lib/api.js";
-import { StatusBadge } from "../../components/ui/index.js";
+import { useTranslation } from "react-i18next";
+import { api } from "@/lib/api.js";
+import { StatusBadge } from "@/components/ui/status-badge.js";
+import { Input } from "@/components/ui/shadcn/input";
+import { Button } from "@/components/ui/shadcn/button";
+import { FormField } from "@/components/ui/form-field.js";
+import { PageHeader } from "@/components/ui/page-header.js";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/shadcn/alert";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/shadcn/table";
+import { CheckCircle2, XCircle } from "lucide-react";
 
 interface FlowRunnerProps {
   adminKey: string;
@@ -12,22 +27,26 @@ interface StepResult {
   timestamp?: string;
 }
 
-const STEP_LABELS = [
-  "1. Create Project",
-  "2. Attach Brave Credential",
-  "3. Enable search.web",
-  "4. Mint Key A",
-  "5. Mint Key B",
-  "6. Search with Key A",
-  "7. Search with Key B",
-  "8. Disable Key B",
-  "9. Verify Key B gets 401",
-  "10. Verify Key A still succeeds",
-] as const;
+const STEP_COUNT = 10;
 
 export function FlowRunner({ adminKey }: FlowRunnerProps) {
+  const { t } = useTranslation();
+
+  const getStepLabels = () => [
+    t("flowRunner.step1"),
+    t("flowRunner.step2"),
+    t("flowRunner.step3"),
+    t("flowRunner.step4"),
+    t("flowRunner.step5"),
+    t("flowRunner.step6"),
+    t("flowRunner.step7"),
+    t("flowRunner.step8"),
+    t("flowRunner.step9"),
+    t("flowRunner.step10"),
+  ];
+
   const [steps, setSteps] = useState<StepResult[]>(
-    STEP_LABELS.map(() => ({ status: "pending" as const })),
+    Array.from({ length: STEP_COUNT }, () => ({ status: "pending" as const })),
   );
   const [running, setRunning] = useState(false);
   const [braveSecret, setBraveSecret] = useState("");
@@ -44,7 +63,7 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
   async function runFlow() {
     if (!braveSecretRef.current.trim()) return;
     setRunning(true);
-    setSteps(STEP_LABELS.map(() => ({ status: "pending" as const })));
+    setSteps(Array.from({ length: STEP_COUNT }, () => ({ status: "pending" as const })));
 
     let projectId = "";
     let keyA = "";
@@ -141,60 +160,66 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
 
   const allDone = steps.every((s) => s.status === "success");
   const hasFailed = steps.some((s) => s.status === "failure");
+  const stepLabels = getStepLabels();
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-white mb-2">Flow Runner</h1>
-      <p className="text-gray-400 text-sm mb-4">Execute the Phase 2.5 Brave-only workflow end to end.</p>
+      <PageHeader title={t("flowRunner.title")} subtitle={t("flowRunner.subtitle")} />
 
-      <div className="mb-4 flex gap-2 items-center">
-        <input
-          type="password"
-          value={braveSecret}
-          onChange={(e) => { setBraveSecret(e.target.value); braveSecretRef.current = e.target.value; }}
-          placeholder="Brave API Secret"
-          className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 w-64"
-        />
-        <input
-          value={searchQuery}
-          onChange={(e) => { setSearchQuery(e.target.value); searchQueryRef.current = e.target.value; }}
-          placeholder="Search query"
-          className="bg-gray-800 border border-gray-600 rounded px-3 py-1.5 text-sm text-gray-200 w-52"
-        />
-        <button
-          onClick={runFlow}
-          disabled={running}
-          className="px-4 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded disabled:opacity-50"
-        >
-          {running ? "Running..." : "Run Flow"}
-        </button>
+      <div className="mb-6 flex flex-wrap gap-4 items-end">
+        <FormField label={t("flowRunner.braveApiSecret")} htmlFor="brave-secret">
+          <Input
+            id="brave-secret"
+            type="password"
+            value={braveSecret}
+            onChange={(e) => { setBraveSecret(e.target.value); braveSecretRef.current = e.target.value; }}
+            placeholder={t("flowRunner.braveApiSecret")}
+            className="w-64"
+          />
+        </FormField>
+        <FormField label={t("flowRunner.searchQuery")} htmlFor="search-query">
+          <Input
+            id="search-query"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); searchQueryRef.current = e.target.value; }}
+            placeholder={t("flowRunner.searchQueryPlaceholder")}
+            className="w-52"
+          />
+        </FormField>
+        <Button onClick={runFlow} disabled={running}>
+          {running ? t("flowRunner.running") : t("flowRunner.runFlow")}
+        </Button>
       </div>
 
       {allDone && (
-        <p data-testid="flow-success" className="text-green-400 font-bold mb-2">
-          All 10 steps passed.
-        </p>
+        <Alert data-testid="flow-success" className="mb-4 border-emerald-600/50 text-emerald-400">
+          <CheckCircle2 className="size-4 text-emerald-500" />
+          <AlertTitle>{t("flowRunner.successTitle")}</AlertTitle>
+          <AlertDescription>{t("flowRunner.successMessage")}</AlertDescription>
+        </Alert>
       )}
       {hasFailed && (
-        <p data-testid="flow-failure" className="text-red-400 font-bold mb-2">
-          Flow failed. See details below.
-        </p>
+        <Alert data-testid="flow-failure" variant="destructive" className="mb-4">
+          <XCircle className="size-4" />
+          <AlertTitle>{t("flowRunner.failedTitle")}</AlertTitle>
+          <AlertDescription>{t("flowRunner.failedMessage")}</AlertDescription>
+        </Alert>
       )}
 
-      <table data-testid="flow-steps" className="w-full text-sm text-left">
-        <thead>
-          <tr className="border-b-2 border-gray-700 text-gray-400 uppercase text-xs">
-            <th className="px-3 py-2 font-medium">Step</th>
-            <th className="px-3 py-2 font-medium">Status</th>
-            <th className="px-3 py-2 font-medium">Detail</th>
-            <th className="px-3 py-2 font-medium">Time</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-800">
+      <Table data-testid="flow-steps">
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t("flowRunner.step")}</TableHead>
+            <TableHead className="w-28">{t("common.status")}</TableHead>
+            <TableHead>{t("flowRunner.detail")}</TableHead>
+            <TableHead className="w-44">{t("flowRunner.time")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {steps.map((step, i) => (
-            <tr key={i}>
-              <td className="px-3 py-2 text-gray-300">{STEP_LABELS[i]}</td>
-              <td className="px-3 py-2">
+            <TableRow key={i} className="transition-colors hover:bg-muted/50">
+              <TableCell className="text-sm">{stepLabels[i]}</TableCell>
+              <TableCell>
                 <StatusBadge
                   variant={
                     step.status === "success" ? "active" :
@@ -203,17 +228,17 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
                   }
                   label={step.status}
                 />
-              </td>
-              <td className="px-3 py-2 font-mono text-xs text-gray-400">
+              </TableCell>
+              <TableCell className="font-mono text-xs text-muted-foreground">
                 {step.detail ?? "\u2014"}
-              </td>
-              <td className="px-3 py-2 text-xs text-gray-500">
+              </TableCell>
+              <TableCell className="text-xs text-muted-foreground">
                 {step.timestamp ?? "\u2014"}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

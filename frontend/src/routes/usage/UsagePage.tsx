@@ -1,50 +1,42 @@
 import { useEffect, useState, useCallback } from "react";
-import { api } from "../../lib/api.js";
-import type { UsageEvent, PaginatedResult, Project, ProviderInfo } from "../../lib/api.js";
-import { DataTable, Pagination, LoadingSpinner, StatusBadge, EmptyState, DateRangePicker } from "../../components/ui/index.js";
-import type { Column } from "../../components/ui/index.js";
+import { useTranslation } from "react-i18next";
+import { api } from "@/lib/api.js";
+import type { UsageEvent, PaginatedResult, Project, ProviderInfo } from "@/lib/api.js";
+import { StatusBadge } from "@/components/ui/status-badge.js";
+import { EmptyState } from "@/components/ui/empty-state.js";
+import { LoadingSpinner } from "@/components/ui/loading-skeleton.js";
+import { Button } from "@/components/ui/shadcn/button";
+import { Input } from "@/components/ui/shadcn/input";
+import { FormField } from "@/components/ui/form-field.js";
+import { Alert, AlertDescription } from "@/components/ui/shadcn/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/shadcn/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/shadcn/table";
+import { AlertCircle, Download } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header.js";
+import { formatDate } from "@/lib/format.js";
 
 interface UsagePageProps {
   adminKey: string;
 }
 
-function formatTimestamp(iso?: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString();
-}
-
-const columns: Column<UsageEvent>[] = [
-  { key: "createdAt", header: "Timestamp", render: (r) => <span className="text-xs text-gray-400">{formatTimestamp(r.createdAt)}</span> },
-  { key: "requestId", header: "Request ID", render: (r) => <code className="text-xs">{r.requestId.slice(0, 12)}</code> },
-  { key: "capability", header: "Capability", render: (r) => r.capability },
-  { key: "provider", header: "Provider", render: (r) => r.provider },
-  {
-    key: "success",
-    header: "Status",
-    render: (r) => <StatusBadge variant={r.success ? "active" : "error"} label={r.success ? "OK" : `${r.statusCode}`} />,
-  },
-  { key: "latencyMs", header: "Latency", render: (r) => `${r.latencyMs}ms` },
-  { key: "resultCount", header: "Results", render: (r) => r.resultCount },
-  { key: "fallbackCount", header: "Fallbacks", render: (r) => <span className={r.fallbackCount > 0 ? "text-orange-400" : "text-gray-500"}>{r.fallbackCount}</span> },
-];
 
 function buildCsv(items: UsageEvent[]): string {
   const header = "Timestamp,Request ID,Project ID,API Key ID,Capability,Provider,Status,Status Code,Latency (ms),Results,Fallbacks";
   const rows = items.map((r) =>
-    [
-      r.createdAt ?? "",
-      r.requestId,
-      r.projectId,
-      r.apiKeyId,
-      r.capability,
-      r.provider,
-      r.success ? "OK" : "Failed",
-      r.statusCode,
-      r.latencyMs,
-      r.resultCount,
-      r.fallbackCount,
-    ].join(","),
+    [r.createdAt ?? "", r.requestId, r.projectId, r.apiKeyId, r.capability, r.provider, r.success ? "OK" : "Failed", r.statusCode, r.latencyMs, r.resultCount, r.fallbackCount].join(","),
   );
   return [header, ...rows].join("\n");
 }
@@ -61,11 +53,12 @@ function downloadCsv(items: UsageEvent[]) {
 }
 
 export function UsagePage({ adminKey }: UsagePageProps) {
+  const { t } = useTranslation();
   const [result, setResult] = useState<PaginatedResult<UsageEvent> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize] = useState(25);
   const [capability, setCapability] = useState("");
   const [success, setSuccess] = useState("");
   const [projectId, setProjectId] = useState("");
@@ -84,10 +77,7 @@ export function UsagePage({ adminKey }: UsagePageProps) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = {
-        page: String(page),
-        pageSize: String(pageSize),
-      };
+      const params: Record<string, string> = { page: String(page), pageSize: String(pageSize) };
       if (capability) params.capability = capability;
       if (success) params.success = success;
       if (projectId) params.projectId = projectId;
@@ -95,7 +85,6 @@ export function UsagePage({ adminKey }: UsagePageProps) {
       if (apiKeyId) params.apiKeyId = apiKeyId;
       if (dateFrom) params.from = dateFrom;
       if (dateTo) params.to = dateTo;
-
       const data = await api.queryUsageEvents(adminKey, params);
       setResult(data);
       setError(null);
@@ -106,104 +95,168 @@ export function UsagePage({ adminKey }: UsagePageProps) {
     }
   }, [adminKey, page, pageSize, capability, success, projectId, apiKeyId, provider, dateFrom, dateTo]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-white">Usage Records</h1>
-        {result && result.items.length > 0 && (
-          <button
-            data-testid="csv-export"
-            onClick={() => downloadCsv(result.items)}
-            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-sm rounded text-gray-200"
-          >
-            Export CSV
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title={t("usage.title")}
+        actions={
+          result && result.items.length > 0 ? (
+            <Button data-testid="csv-export" variant="outline" size="sm" onClick={() => downloadCsv(result.items)}>
+              <Download className="size-3.5 mr-1.5" />
+              {t("usage.exportCsv")}
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-4 items-center">
-        <select
-          value={projectId}
-          onChange={(e) => { setProjectId(e.target.value); setPage(1); }}
-          className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
-        >
-          <option value="">All projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-        <input
-          type="text"
-          placeholder="API Key ID"
-          value={apiKeyId}
-          onChange={(e) => { setApiKeyId(e.target.value); setPage(1); }}
-          className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200 w-36"
-        />
-        <select
-          value={capability}
-          onChange={(e) => { setCapability(e.target.value); setPage(1); }}
-          className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
-        >
-          <option value="">All capabilities</option>
-          <option value="search.web">search.web</option>
-          <option value="search.news">search.news</option>
-          <option value="search.images">search.images</option>
-        </select>
-        <select
-          data-testid="provider-filter"
-          value={provider}
-          onChange={(e) => { setProvider(e.target.value); setPage(1); }}
-          className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
-        >
-          <option value="">All providers</option>
-          {providers.map((p) => (
-            <option key={p.id} value={p.id}>{p.id}</option>
-          ))}
-        </select>
-        <select
-          value={success}
-          onChange={(e) => { setSuccess(e.target.value); setPage(1); }}
-          className="bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-sm text-gray-200"
-        >
-          <option value="">All statuses</option>
-          <option value="true">Success</option>
-          <option value="false">Failed</option>
-        </select>
+      <div className="flex flex-wrap gap-4 mb-4 items-end">
+        <FormField label={t("common.project")}>
+          <Select value={projectId || "__all__"} onValueChange={(v) => { setProjectId(v === "__all__" ? "" : v); setPage(1); }}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder={t("common.allProjects")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("common.allProjects")}</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+
+        <FormField label={t("usage.apiKeyId")} htmlFor="api-key-filter">
+          <Input
+            id="api-key-filter"
+            type="text"
+            placeholder={t("usage.apiKeyId")}
+            value={apiKeyId}
+            onChange={(e) => { setApiKeyId(e.target.value); setPage(1); }}
+            className="w-36"
+          />
+        </FormField>
+
+        <FormField label={t("common.capability")}>
+          <Select value={capability || "__all__"} onValueChange={(v) => { setCapability(v === "__all__" ? "" : v); setPage(1); }}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder={t("common.allCapabilities")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("common.allCapabilities")}</SelectItem>
+              <SelectItem value="search.web">search.web</SelectItem>
+              <SelectItem value="search.news">search.news</SelectItem>
+              <SelectItem value="search.images">search.images</SelectItem>
+            </SelectContent>
+          </Select>
+        </FormField>
+
+        <FormField label={t("common.provider")}>
+          <Select value={provider || "__all__"} onValueChange={(v) => { setProvider(v === "__all__" ? "" : v); setPage(1); }}>
+            <SelectTrigger data-testid="provider-filter" className="w-36">
+              <SelectValue placeholder={t("common.allProviders")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("common.allProviders")}</SelectItem>
+              {providers.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.id}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+
+        <FormField label={t("common.status")}>
+          <Select value={success || "__all__"} onValueChange={(v) => { setSuccess(v === "__all__" ? "" : v); setPage(1); }}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder={t("common.allStatuses")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("common.allStatuses")}</SelectItem>
+              <SelectItem value="true">{t("common.success")}</SelectItem>
+              <SelectItem value="false">{t("common.failed")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </FormField>
       </div>
 
       {/* Date range */}
-      <div className="mb-4">
-        <DateRangePicker
-          from={dateFrom}
-          to={dateTo}
-          onChange={({ from, to }) => { setDateFrom(from); setDateTo(to); setPage(1); }}
-        />
+      <div className="flex gap-4 mb-6 items-end">
+        <FormField label={t("usage.from")} htmlFor="date-from">
+          <Input id="date-from" type="datetime-local" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className="w-48" />
+        </FormField>
+        <FormField label={t("usage.to")} htmlFor="date-to">
+          <Input id="date-to" type="datetime-local" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className="w-48" />
+        </FormField>
+        {(dateFrom || dateTo) && (
+          <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}>
+            {t("usage.clearDates")}
+          </Button>
+        )}
       </div>
 
-      {loading && <LoadingSpinner label="Loading usage records..." />}
-      {error && <p className="text-red-400 text-sm">{error}</p>}
-
-      {!loading && result && (
-        <>
-          {result.items.length === 0 ? (
-            <EmptyState message="No usage records match your filters." />
-          ) : (
-            <DataTable columns={columns} rows={result.items} rowKey={(r) => r.requestId} />
-          )}
-          <Pagination
-            page={result.page}
-            pageSize={result.pageSize}
-            total={result.total}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
-          />
-        </>
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
+
+      {loading ? (
+        <LoadingSpinner label={t("usage.loadingUsage")} />
+      ) : result && result.items.length === 0 ? (
+        <EmptyState message={t("usage.noRecords")} />
+      ) : result ? (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("usage.timestamp")}</TableHead>
+                <TableHead>{t("usage.requestId")}</TableHead>
+                <TableHead>{t("common.capability")}</TableHead>
+                <TableHead>{t("common.provider")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
+                <TableHead>{t("usage.latency")}</TableHead>
+                <TableHead>{t("usage.results")}</TableHead>
+                <TableHead>{t("usage.fallbacks")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {result.items.map((r) => (
+                <TableRow key={r.requestId} className="transition-colors hover:bg-muted/50">
+                  <TableCell className="text-xs text-muted-foreground">{formatDate(r.createdAt)}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.requestId.slice(0, 12)}</TableCell>
+                  <TableCell className="text-sm">{r.capability}</TableCell>
+                  <TableCell className="text-sm">{r.provider}</TableCell>
+                  <TableCell>
+                    <StatusBadge variant={r.success ? "active" : "error"} label={r.success ? "OK" : `${r.statusCode}`} />
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{r.latencyMs}ms</TableCell>
+                  <TableCell className="font-mono text-xs">{r.resultCount}</TableCell>
+                  <TableCell className={`font-mono text-xs ${r.fallbackCount > 0 ? "text-orange-400" : "text-muted-foreground"}`}>
+                    {r.fallbackCount}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          {/* Simple pagination */}
+          <div className="flex items-center justify-between mt-4">
+            <span className="text-sm text-muted-foreground">
+              {t("usage.pageInfo", { page: result.page, total: Math.ceil(result.total / result.pageSize) || 1, count: result.total })}
+            </span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled={result.page <= 1} onClick={() => setPage(result.page - 1)}>
+                {t("common.previous")}
+              </Button>
+              <Button variant="outline" size="sm" disabled={result.page * result.pageSize >= result.total} onClick={() => setPage(result.page + 1)}>
+                {t("common.next")}
+              </Button>
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

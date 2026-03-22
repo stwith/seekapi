@@ -14,7 +14,11 @@
     "noUnusedParameters": true,
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src"]
 }
