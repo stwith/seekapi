@@ -107,37 +107,35 @@ export function Dashboard({ adminKey }: DashboardProps) {
 
   return (
     <div>
-      <PageHeader
-        title={t("dashboard.title")}
-        actions={
-          <div className="flex items-center gap-3">
-            {healthy !== null && (
-              healthy ? (
-                <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-600" data-testid="health-status">{t("overview.connected")}</Badge>
-              ) : (
-                <Badge variant="destructive" data-testid="health-status">
-                  <ServerCrash className="mr-1 size-3" />
-                  {t("overview.unreachable")}
-                </Badge>
-              )
-            )}
-            <Select
-              value={selectedProject || "__all__"}
-              onValueChange={(v) => setSelectedProject(v === "__all__" ? "" : v)}
-            >
-              <SelectTrigger data-testid="project-filter" className="w-48" aria-label={t("common.allProjects")}>
-                <SelectValue placeholder={t("common.allProjects")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">{t("common.allProjects")}</SelectItem>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        }
-      />
+      <div className="flex items-center gap-3 mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">{t("dashboard.title")}</h1>
+        {healthy !== null && (
+          healthy ? (
+            <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-600" data-testid="health-status">{t("overview.connected")}</Badge>
+          ) : (
+            <Badge variant="destructive" data-testid="health-status">
+              <ServerCrash className="mr-1 size-3" />
+              {t("overview.unreachable")}
+            </Badge>
+          )
+        )}
+        <div className="ml-auto">
+          <Select
+            value={selectedProject || "__all__"}
+            onValueChange={(v) => setSelectedProject(v === "__all__" ? "" : v)}
+          >
+            <SelectTrigger data-testid="project-filter" className="w-48" aria-label={t("common.allProjects")}>
+              <SelectValue placeholder={t("common.allProjects")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("common.allProjects")}</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
       {/* Stats */}
       <div data-testid="stats-cards" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
