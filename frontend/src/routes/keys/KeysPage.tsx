@@ -128,10 +128,13 @@ export function KeysPage({ adminKey }: KeysPageProps) {
             </SelectContent>
           </Select>
         </FormField>
-        <Button onClick={handleMint} disabled={!selectedProject || minting}>
-          <KeyRound className="size-3.5 mr-1.5" />
-          {minting ? t("keys.creating") : t("keys.mintNewKey")}
-        </Button>
+        <div className="space-y-1.5">
+          <span className="h-4 block" />
+          <Button onClick={handleMint} disabled={!selectedProject || minting} className="h-9">
+            <KeyRound className="size-3.5 mr-1.5" />
+            {minting ? t("keys.creating") : t("keys.mintNewKey")}
+          </Button>
+        </div>
       </div>
 
       {/* Revealed key */}

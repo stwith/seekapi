@@ -207,9 +207,12 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
               className="w-72"
             />
           </FormField>
-          <Button type="submit" disabled={credSubmitting}>
-            {t("common.attach")}
-          </Button>
+          <div className="space-y-1.5">
+            <span className="h-4 block" />
+            <Button type="submit" disabled={credSubmitting} className="h-9">
+              {t("common.attach")}
+            </Button>
+          </div>
         </form>
       </section>
 
@@ -276,13 +279,19 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
               className="w-20"
             />
           </FormField>
-          <div className="flex items-center gap-2 pb-0.5">
-            <Switch checked={bindEnabled} onCheckedChange={setBindEnabled} aria-label={t("common.enabled")} />
-            <span className="text-sm text-muted-foreground">{t("common.enabled")}</span>
+          <div className="space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground leading-4 h-4 block">{t("common.status")}</span>
+            <div className="flex items-center gap-2 h-9">
+              <Switch checked={bindEnabled} onCheckedChange={setBindEnabled} aria-label={t("common.enabled")} />
+              <span className="text-sm text-muted-foreground">{t("common.enabled")}</span>
+            </div>
           </div>
-          <Button type="submit" variant="secondary">
-            {t("common.configure")}
-          </Button>
+          <div className="space-y-1.5">
+            <span className="h-4 block" />
+            <Button type="submit" variant="secondary" className="h-9">
+              {t("common.configure")}
+            </Button>
+          </div>
         </form>
       </section>
 
