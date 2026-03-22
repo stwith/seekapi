@@ -194,7 +194,6 @@ describe("ProjectDetail multi-provider [Task 53]", () => {
     });
   });
 
-
   it("shows provider selector for credentials and bindings", async () => {
     mockApi.getProjectDetail.mockResolvedValue({
       project: { id: "proj-1", name: "Test Project", status: "active" },
