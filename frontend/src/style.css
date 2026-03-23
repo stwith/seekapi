@@ -123,9 +123,14 @@
 @layer base {
   * {
     @apply border-border;
+  }
+  /* Hide scrollbars on nav sidebar and main content shell only */
+  [data-testid="nav-sidebar"],
+  [data-testid="main-content"] {
     scrollbar-width: none;
   }
-  *::-webkit-scrollbar {
+  [data-testid="nav-sidebar"]::-webkit-scrollbar,
+  [data-testid="main-content"]::-webkit-scrollbar {
     display: none;
   }
   body {

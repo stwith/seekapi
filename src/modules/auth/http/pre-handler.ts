@@ -55,17 +55,24 @@ export async function registerAuthPreHandler(
         });
       }
 
+      // Read per-project rateLimitRpm from quota (outside rate-limit try/catch
+      // so a quota DB failure doesn't silently bypass rate limiting).
+      let rpm: number | undefined;
+      if (deps.quotaRepository) {
+        try {
+          const quota = await deps.quotaRepository.findByProjectId(project.projectId);
+          if (quota) rpm = quota.rateLimitRpm;
+        } catch {
+          // Quota lookup failed — fall back to global default RPM
+          req.log.warn("quota lookup failed, using default rate limit");
+        }
+      }
+
       // Rate limiting — check after auth so we know the project.
       // If the rate-limit backend (Redis) is unreachable, allow the request
       // through rather than turning every call into a 500.
       if (deps.rateLimitService) {
         try {
-          // Read per-project rateLimitRpm from quota if available
-          let rpm: number | undefined;
-          if (deps.quotaRepository) {
-            const quota = await deps.quotaRepository.findByProjectId(project.projectId);
-            if (quota) rpm = quota.rateLimitRpm;
-          }
           const limit = await deps.rateLimitService.check(project.projectId, rpm);
           reply.header("x-ratelimit-limit", String(limit.limit));
           reply.header("x-ratelimit-remaining", String(limit.remaining));

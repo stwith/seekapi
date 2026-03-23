@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api.js";
 import type { ProjectDetail, GlobalCredentialMeta, ProviderBinding } from "@/lib/types.js";
+import type { ProviderInfo } from "@/lib/api.js";
 import { StatusBadge } from "@/components/ui/status-badge.js";
 import { LoadingSpinner } from "@/components/ui/loading-skeleton.js";
 import { Button } from "@/components/ui/shadcn/button";
@@ -95,18 +96,21 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   const [globalCreds, setGlobalCreds] = useState<GlobalCredentialMeta[]>([]);
   const [linkedCreds, setLinkedCreds] = useState<GlobalCredentialMeta[]>([]);
   const [selectedCredId, setSelectedCredId] = useState("");
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
 
   const loadDetail = useCallback(async () => {
     if (!projectId) return;
     try {
-      const [d, globalCredsResult, linkedCredsResult] = await Promise.all([
+      const [d, globalCredsResult, linkedCredsResult, provResult] = await Promise.all([
         api.getProjectDetail(adminKey, projectId),
         api.listGlobalCredentials(adminKey).catch(() => ({ credentials: [] })),
         api.listProjectCredentialRefs(adminKey, projectId).catch(() => ({ credentials: [] })),
+        api.listProviders(adminKey).catch(() => ({ providers: [] })),
       ]);
       setDetail(d);
       setGlobalCreds(globalCredsResult.credentials);
       setLinkedCreds(linkedCredsResult.credentials);
+      setProviders(provResult.providers);
       setError(null);
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -183,6 +187,32 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
     if (!projectId || !selectedCredId) return;
     try {
       await api.addProjectCredentialRef(adminKey, projectId, selectedCredId);
+
+      // Auto-create bindings for the linked credential's provider capabilities
+      const cred = globalCreds.find((c) => c.id === selectedCredId);
+      if (cred) {
+        const provInfo = providers.find((p) => p.id === cred.provider);
+        if (provInfo) {
+          const existingCaps = new Set(
+            (detail?.bindings ?? [])
+              .filter((b) => b.provider === cred.provider)
+              .map((b) => b.capability),
+          );
+          await Promise.all(
+            provInfo.capabilities
+              .filter((cap) => !existingCaps.has(cap))
+              .map((cap, i) =>
+                api.configureBinding(adminKey, projectId!, {
+                  provider: cred.provider,
+                  capability: cap,
+                  enabled: true,
+                  priority: (detail?.bindings ?? []).filter((b) => b.capability === cap).length + i,
+                }),
+              ),
+          );
+        }
+      }
+
       setSelectedCredId("");
       await loadDetail();
     } catch (err: unknown) {
