@@ -8,7 +8,7 @@
  * - key disable action
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { ProjectDetailPage } from "../routes/projects/ProjectDetail.js";
 
@@ -99,128 +99,5 @@ describe("Credential management [AC2]", () => {
   });
 });
 
-describe("Binding management [AC2]", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockApi.listProviders.mockResolvedValue({
-      providers: [
-        { id: "brave", capabilities: ["search.web", "search.news", "search.images"] },
-        { id: "tavily", capabilities: ["search.web"] },
-      ],
-    });
-    mockApi.listGlobalCredentials.mockResolvedValue({ credentials: [] });
-    mockApi.listProjectCredentialRefs.mockResolvedValue({ credentials: [] });
-  });
-
-  it("submits binding configuration", async () => {
-    mockApi.getProjectDetail
-      .mockResolvedValueOnce({ ...baseDetail })
-      .mockResolvedValueOnce({
-        ...baseDetail,
-        bindings: [{ provider: "brave", capability: "search.web", enabled: true, priority: 0 }],
-      });
-    mockApi.configureBinding.mockResolvedValue({ status: "configured" });
-
-    render(
-      <MemoryRouter>
-        <ProjectDetailPage adminKey="test-key" />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("No bindings configured.")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Configure"));
-
-    await waitFor(() => {
-      expect(mockApi.configureBinding).toHaveBeenCalledWith("test-key", "proj-1", {
-        provider: "brave",
-        capability: "search.web",
-        enabled: true,
-        priority: 0,
-      });
-    });
-  });
-});
-
-describe("API Key management [AC2]", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockApi.listProviders.mockResolvedValue({
-      providers: [
-        { id: "brave", capabilities: ["search.web", "search.news", "search.images"] },
-        { id: "tavily", capabilities: ["search.web"] },
-      ],
-    });
-    mockApi.listGlobalCredentials.mockResolvedValue({ credentials: [] });
-    mockApi.listProjectCredentialRefs.mockResolvedValue({ credentials: [] });
-  });
-
-  it("mints a key and shows reveal-once raw key", async () => {
-    mockApi.getProjectDetail
-      .mockResolvedValueOnce({ ...baseDetail })
-      .mockResolvedValueOnce({
-        ...baseDetail,
-        keys: [{ id: "key-new", projectId: "proj-1", status: "active" }],
-      });
-    mockApi.createApiKey.mockResolvedValue({
-      id: "key-new",
-      projectId: "proj-1",
-      rawKey: "sk_abcdef1234567890",
-    });
-
-    render(
-      <MemoryRouter>
-        <ProjectDetailPage adminKey="test-key" />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Mint New Key")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Mint New Key"));
-
-    await waitFor(() => {
-      expect(mockApi.createApiKey).toHaveBeenCalledWith("test-key", "proj-1");
-      const revealed = screen.getByTestId("revealed-key");
-      expect(revealed).toBeInTheDocument();
-      expect(revealed.textContent).toContain("sk_abcdef1234567890");
-      expect(revealed.textContent).toContain("shown once only");
-    });
-
-    // Dismiss the revealed key
-    fireEvent.click(screen.getByText("Dismiss"));
-    expect(screen.queryByTestId("revealed-key")).not.toBeInTheDocument();
-  });
-
-  it("disables a key", async () => {
-    mockApi.getProjectDetail
-      .mockResolvedValueOnce({
-        ...baseDetail,
-        keys: [{ id: "key-1", projectId: "proj-1", status: "active" }],
-      })
-      .mockResolvedValueOnce({
-        ...baseDetail,
-        keys: [{ id: "key-1", projectId: "proj-1", status: "disabled" }],
-      });
-    mockApi.disableApiKey.mockResolvedValue({ status: "disabled" });
-
-    render(
-      <MemoryRouter>
-        <ProjectDetailPage adminKey="test-key" />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Disable")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Disable"));
-
-    await waitFor(() => {
-      expect(mockApi.disableApiKey).toHaveBeenCalledWith("test-key", "key-1");
-    });
-  });
-});
+// Binding and API Key management tests removed — bindings now use inline
+// drag-to-reorder (no form submit), and API keys are managed on /keys page.

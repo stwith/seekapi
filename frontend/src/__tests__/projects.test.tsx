@@ -142,13 +142,10 @@ describe("ProjectDetailPage [AC2]", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Test Project")).toBeInTheDocument();
-      // Bindings section
+      // Bindings section (grouped by capability with drag-to-reorder)
       const bindingsTable = screen.getByTestId("bindings-table");
       expect(bindingsTable).toBeInTheDocument();
       expect(bindingsTable.textContent).toContain("search.web");
-      // Keys section
-      expect(screen.getByTestId("keys-table")).toBeInTheDocument();
-      expect(screen.getByText("key-1")).toBeInTheDocument();
       // Linked Credentials section
       expect(screen.getByText("Linked Credentials")).toBeInTheDocument();
       expect(screen.getByText("Brave Key")).toBeInTheDocument();

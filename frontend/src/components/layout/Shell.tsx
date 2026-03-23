@@ -311,7 +311,7 @@ export function Shell({ onLogout, children }: ShellProps) {
       </Sheet>
 
       {/* Main content */}
-      <main className="flex-1 min-h-[100dvh] overflow-auto">
+      <main data-testid="main-content" className="flex-1 min-h-[100dvh] overflow-auto">
         <div className="p-6 md:p-8 pt-16 md:pt-8">{children}</div>
       </main>
     </div>
