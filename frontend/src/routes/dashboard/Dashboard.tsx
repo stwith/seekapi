@@ -51,9 +51,9 @@ export function Dashboard({ adminKey }: DashboardProps) {
         api.getProviderBreakdown(adminKey, Object.keys(params).length > 0 ? params : undefined),
       ]);
       setStats(s);
-      setSeries(ts.series);
-      setCapabilities(cb.capabilities);
-      setProviderBreakdown(pb.providers);
+      setSeries(ts?.series ?? []);
+      setCapabilities(cb?.capabilities ?? []);
+      setProviderBreakdown(pb?.providers ?? []);
       setError(null);
     } catch (e: unknown) {
       setError((e as Error).message);

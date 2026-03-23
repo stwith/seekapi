@@ -8,16 +8,36 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import { App } from "../app/App.js";
 
+/** Realistic mock responses matching actual API shapes */
+const MOCK_RESPONSES: Record<string, unknown> = {
+  "/v1/health": { status: "ok" },
+  "/admin/projects": [],
+  "/admin/stats/dashboard": {
+    totalRequests: 0,
+    successCount: 0,
+    failureCount: 0,
+    avgLatencyMs: 0,
+  },
+  "/admin/stats/timeseries": { series: [] },
+  "/admin/stats/capabilities": { capabilities: [] },
+  "/admin/stats/providers": { providers: [] },
+  "/admin/quotas": { quotas: [] },
+};
+
+function findMockResponse(url: string): unknown {
+  for (const [key, value] of Object.entries(MOCK_RESPONSES)) {
+    if (url.includes(key)) return value;
+  }
+  return { status: "ok" };
+}
+
 describe("App shell [AC1]", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    // Mock fetch so Dashboard's useEffect doesn't fire uncontrolled async updates
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
-      if (url.includes("/admin/projects")) {
-        return new Response(JSON.stringify([]), { status: 200 });
-      }
-      return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
+      const body = findMockResponse(url);
+      return new Response(JSON.stringify(body), { status: 200 });
     });
   });
 

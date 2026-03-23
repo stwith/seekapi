@@ -86,6 +86,20 @@ export class AdminService {
       throw new AdminError("Project not found", "PROJECT_NOT_FOUND");
     }
 
+    // Enforce maxKeys quota
+    if (this.deps.quotaRepository && this.deps.apiKeyRepository.listByProject) {
+      const quota = await this.deps.quotaRepository.findByProjectId(projectId);
+      if (quota) {
+        const existingKeys = await this.deps.apiKeyRepository.listByProject(projectId);
+        if (existingKeys.length >= quota.maxKeys) {
+          throw new AdminError(
+            `Project has reached max key limit (${quota.maxKeys})`,
+            "MAX_KEYS_EXCEEDED",
+          );
+        }
+      }
+    }
+
     const id = randomUUID();
     const rawKey = `sk_${randomUUID().replace(/-/g, "")}`;
     const hashedKey = hashKey(rawKey);
@@ -548,6 +562,13 @@ export class AdminService {
     if (!this.deps.credentialRepository.removeProjectRef) {
       throw new Error("Project credential refs not supported by this repository");
     }
+
+    // Verify project exists
+    const project = await this.deps.projectRepository.findById(projectId);
+    if (!project) {
+      throw new AdminError("Project not found", "PROJECT_NOT_FOUND");
+    }
+
     await this.deps.credentialRepository.removeProjectRef(projectId, credentialId);
   }
 

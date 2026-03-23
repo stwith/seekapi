@@ -181,6 +181,9 @@ export async function registerAdminRoutes(
         if (err instanceof AdminError && err.code === "PROJECT_NOT_FOUND") {
           return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
         }
+        if (err instanceof AdminError && err.code === "MAX_KEYS_EXCEEDED") {
+          return reply.status(422).send({ error: "MAX_KEYS_EXCEEDED", message: err.message });
+        }
         throw err;
       }
     },

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { AuthService } from "../service/auth-service.js";
 import type { RateLimitService } from "../service/rate-limit-service.js";
 import type { ProjectContext } from "../../projects/service/project-service.js";
+import type { QuotaRepository } from "../../../infra/db/repositories/quota-repository.js";
 
 /** Paths that bypass API key authentication. */
 const PUBLIC_PATHS = new Set(["/v1/health"]);
@@ -16,6 +17,7 @@ declare module "fastify" {
 export interface AuthPreHandlerDeps {
   authService: AuthService;
   rateLimitService?: RateLimitService;
+  quotaRepository?: QuotaRepository;
 }
 
 /**
@@ -58,7 +60,13 @@ export async function registerAuthPreHandler(
       // through rather than turning every call into a 500.
       if (deps.rateLimitService) {
         try {
-          const limit = await deps.rateLimitService.check(project.projectId);
+          // Read per-project rateLimitRpm from quota if available
+          let rpm: number | undefined;
+          if (deps.quotaRepository) {
+            const quota = await deps.quotaRepository.findByProjectId(project.projectId);
+            if (quota) rpm = quota.rateLimitRpm;
+          }
+          const limit = await deps.rateLimitService.check(project.projectId, rpm);
           reply.header("x-ratelimit-limit", String(limit.limit));
           reply.header("x-ratelimit-remaining", String(limit.remaining));
           reply.header("x-ratelimit-reset", String(limit.resetSeconds));

@@ -38,7 +38,13 @@ export class RateLimitService {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  async check(projectId: string): Promise<RateLimitResult> {
+  /**
+   * Check rate limit for a project.
+   * @param projectId project identifier
+   * @param maxRequestsOverride optional per-project RPM from quota config; falls back to global default
+   */
+  async check(projectId: string, maxRequestsOverride?: number): Promise<RateLimitResult> {
+    const effectiveMax = maxRequestsOverride ?? this.config.maxRequests;
     const nowSeconds = Date.now() / 1000;
     const windowKey = Math.floor(nowSeconds / this.config.windowSeconds);
     const key = `ratelimit:${projectId}:${windowKey}`;
@@ -59,14 +65,14 @@ export class RateLimitService {
       return {
         allowed: true,
         current: 0,
-        limit: this.config.maxRequests,
-        remaining: this.config.maxRequests,
+        limit: effectiveMax,
+        remaining: effectiveMax,
         resetSeconds,
       };
     }
 
-    const allowed = count <= this.config.maxRequests;
-    const remaining = Math.max(0, this.config.maxRequests - count);
+    const allowed = count <= effectiveMax;
+    const remaining = Math.max(0, effectiveMax - count);
 
     // Compute remaining seconds until the current window resets
     const windowEnd = (windowKey + 1) * this.config.windowSeconds;
@@ -79,7 +85,7 @@ export class RateLimitService {
     return {
       allowed,
       current: count,
-      limit: this.config.maxRequests,
+      limit: effectiveMax,
       remaining,
       resetSeconds,
     };
