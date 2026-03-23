@@ -774,4 +774,52 @@ describe("Admin end-to-end flow [AC3]", () => {
     const refs = listRes.json();
     expect(refs.credentials.length).toBe(1);
   });
+
+  // --- AC1: maxKeys enforcement ---
+  it("rejects key creation when maxKeys quota is reached", async () => {
+    // Create a fresh project
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Quota Test Project" },
+    });
+    const proj = projRes.json();
+
+    // Set maxKeys = 1 via quota
+    await app.inject({
+      method: "PUT",
+      url: `/v1/admin/projects/${proj.id}/quota`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { maxKeys: 1, rateLimitRpm: 60 },
+    });
+
+    // Create first key — should succeed
+    const key1Res = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${proj.id}/keys`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(key1Res.statusCode).toBe(201);
+
+    // Create second key — should fail with 422
+    const key2Res = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${proj.id}/keys`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(key2Res.statusCode).toBe(422);
+    expect(key2Res.json().error).toBe("MAX_KEYS_EXCEEDED");
+  });
+
+  // --- AC5: removeCredentialRef for non-existent project ---
+  it("returns 404 when removing credential ref for non-existent project", async () => {
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/v1/admin/projects/proj_nonexistent/credential-refs/cred_fake",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toBe("NOT_FOUND");
+  });
 });

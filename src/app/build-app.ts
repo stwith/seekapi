@@ -161,7 +161,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   }
 
   // Downstream API key authentication with rate limiting [AC2]
-  await registerAuthPreHandler(app, { authService, rateLimitService });
+  await registerAuthPreHandler(app, { authService, rateLimitService, quotaRepository: opts.quotaRepository });
 
   // Canonical search endpoints [AC6]
   await registerCapabilityRoutes(app, { searchService, usageService, auditService });

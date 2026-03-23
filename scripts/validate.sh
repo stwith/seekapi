@@ -14,7 +14,11 @@ run_if_present() {
   return 1
 }
 
-if [ -f package.json ] && [ -d node_modules ]; then
+if [ -f package.json ]; then
+  if [ ! -d node_modules ]; then
+    echo "[validate] node_modules missing, installing root deps"
+    pnpm install --frozen-lockfile
+  fi
   echo "[validate] pnpm run lint"
   pnpm run lint
   echo "[validate] pnpm run typecheck"
@@ -24,7 +28,8 @@ if [ -f package.json ] && [ -d node_modules ]; then
   echo "[validate] pnpm run build"
   pnpm run build
 else
-  echo "[validate] package.json or node_modules missing, skipping lint/typecheck/test/build"
+  echo "[validate] package.json not found, cannot validate backend"
+  exit 1
 fi
 
 # Frontend validation [Phase 3 AC6]
