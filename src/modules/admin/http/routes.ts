@@ -478,8 +478,13 @@ export async function registerAdminRoutes(
         });
         return reply.send({ status: "updated" });
       } catch (err) {
-        if (err instanceof AdminError && err.code === "CREDENTIAL_NOT_FOUND") {
-          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        if (err instanceof AdminError) {
+          if (err.code === "CREDENTIAL_NOT_FOUND") {
+            return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+          }
+          if (err.code === "NOT_GLOBAL_CREDENTIAL") {
+            return reply.status(422).send({ error: "NOT_GLOBAL_CREDENTIAL", message: err.message });
+          }
         }
         throw err;
       }
@@ -496,8 +501,13 @@ export async function registerAdminRoutes(
         await adminService.deleteGlobalCredential(credentialId);
         return reply.send({ status: "deleted" });
       } catch (err) {
-        if (err instanceof AdminError && err.code === "CREDENTIAL_NOT_FOUND") {
-          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        if (err instanceof AdminError) {
+          if (err.code === "CREDENTIAL_NOT_FOUND") {
+            return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+          }
+          if (err.code === "NOT_GLOBAL_CREDENTIAL") {
+            return reply.status(422).send({ error: "NOT_GLOBAL_CREDENTIAL", message: err.message });
+          }
         }
         throw err;
       }
@@ -542,6 +552,9 @@ export async function registerAdminRoutes(
         if (err instanceof AdminError) {
           if (err.code === "PROJECT_NOT_FOUND" || err.code === "CREDENTIAL_NOT_FOUND") {
             return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+          }
+          if (err.code === "NOT_GLOBAL_CREDENTIAL" || err.code === "CREDENTIAL_NOT_ACTIVE") {
+            return reply.status(422).send({ error: err.code, message: err.message });
           }
         }
         throw err;

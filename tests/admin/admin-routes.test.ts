@@ -593,4 +593,185 @@ describe("Admin end-to-end flow [AC3]", () => {
     });
     expect(res.statusCode).toBe(200);
   });
+
+  // --- Fix 1: Global credential API rejects project-scoped credentials ---
+
+  it("rejects update of project-scoped credential via global API (422)", async () => {
+    // Create a project and attach a project-scoped credential
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Scoped Cred Test" },
+    });
+    expect(projRes.statusCode).toBe(201);
+    const project = projRes.json();
+    const credRes = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", secret: "proj_secret" },
+    });
+    expect(credRes.statusCode).toBe(201);
+    const { id: credId } = credRes.json();
+    expect(credId).toBeDefined();
+
+    // Try to update via global API
+    const updateRes = await app.inject({
+      method: "PUT",
+      url: `/v1/admin/credentials/${credId}`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "hacked" },
+    });
+    expect(updateRes.statusCode).toBe(422);
+    expect(updateRes.json().error).toBe("NOT_GLOBAL_CREDENTIAL");
+  });
+
+  it("rejects delete of project-scoped credential via global API (422)", async () => {
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Scoped Del Test" },
+    });
+    const project = projRes.json();
+    const credRes = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", secret: "proj_secret_del" },
+    });
+    const { id: credId } = credRes.json();
+
+    const delRes = await app.inject({
+      method: "DELETE",
+      url: `/v1/admin/credentials/${credId}`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    expect(delRes.statusCode).toBe(422);
+    expect(delRes.json().error).toBe("NOT_GLOBAL_CREDENTIAL");
+  });
+
+  // --- Fix 2: addCredentialRef rejects non-global / inactive credentials ---
+
+  it("rejects credential ref to project-scoped credential (422)", async () => {
+    // Create two projects
+    const projARes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Project A" },
+    });
+    const projA = projARes.json();
+    const projBRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Project B" },
+    });
+    const projB = projBRes.json();
+
+    // Attach credential to project A (project-scoped)
+    const credRes = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${projA.id}/credentials`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", secret: "projA_secret" },
+    });
+    const { id: credId } = credRes.json();
+
+    // Try to reference project A's credential from project B
+    const refRes = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${projB.id}/credential-refs`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { credentialId: credId },
+    });
+    expect(refRes.statusCode).toBe(422);
+    expect(refRes.json().error).toBe("NOT_GLOBAL_CREDENTIAL");
+  });
+
+  it("rejects credential ref to deleted global credential (422)", async () => {
+    // Create global credential
+    const credRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/credentials",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", name: "will-delete", secret: "del_secret" },
+    });
+    const { id: credId } = credRes.json();
+
+    // Delete it
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/admin/credentials/${credId}`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+
+    // Create project and try to ref deleted credential
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Ref Deleted Test" },
+    });
+    const project = projRes.json();
+
+    const refRes = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/credential-refs`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { credentialId: credId },
+    });
+    expect(refRes.statusCode).toBe(422);
+    expect(refRes.json().error).toBe("CREDENTIAL_NOT_ACTIVE");
+  });
+
+  // --- Fix 3: Credential ref dedup (idempotent) ---
+
+  it("duplicate credential ref is idempotent (no error, single ref)", async () => {
+    // Create global credential
+    const credRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/credentials",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { provider: "brave", name: "dedup-test", secret: "dedup_secret" },
+    });
+    const { id: credId } = credRes.json();
+
+    // Create project
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/admin/projects",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { name: "Dedup Ref Test" },
+    });
+    const project = projRes.json();
+
+    // Add ref twice
+    const ref1 = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/credential-refs`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { credentialId: credId },
+    });
+    expect(ref1.statusCode).toBe(201);
+
+    const ref2 = await app.inject({
+      method: "POST",
+      url: `/v1/admin/projects/${project.id}/credential-refs`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { credentialId: credId },
+    });
+    expect(ref2.statusCode).toBe(201);
+
+    // Should only have one ref
+    const listRes = await app.inject({
+      method: "GET",
+      url: `/v1/admin/projects/${project.id}/credential-refs`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+    });
+    const refs = listRes.json();
+    expect(refs.credentials.length).toBe(1);
+  });
 });

@@ -127,6 +127,34 @@ describe("FlowRunner [AC3]", () => {
     );
   });
 
+  it("disables provider selector and inputs while running", async () => {
+    // Make createProject hang so we can check disabled state
+    mockApi.createProject.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve({ id: "proj-flow", name: "flow-test", status: "active" }), 2000)),
+    );
+
+    render(
+      <MemoryRouter>
+        <FlowRunner adminKey="test-key" />
+      </MemoryRouter>,
+    );
+
+    const secretInput = document.getElementById("api-secret") as HTMLInputElement;
+    fireEvent.change(secretInput, { target: { value: "BSA_test" } });
+
+    // Before running — inputs enabled
+    expect(secretInput).not.toBeDisabled();
+
+    fireEvent.click(screen.getByText("Run Flow"));
+
+    // While running — inputs and provider selector disabled
+    await waitFor(() => {
+      expect(secretInput).toBeDisabled();
+      const queryInput = document.getElementById("search-query") as HTMLInputElement;
+      expect(queryInput).toBeDisabled();
+    });
+  });
+
   it("shows correct HTTP status for verification steps", async () => {
     mockApi.createProject.mockResolvedValue({ id: "proj-flow", name: "flow-test", status: "active" });
     mockApi.upsertCredential.mockResolvedValue({ id: "cred-1" });

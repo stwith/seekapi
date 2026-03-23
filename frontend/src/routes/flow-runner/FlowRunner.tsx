@@ -194,6 +194,7 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
           <Select
             value={provider}
             onValueChange={(v) => { setProvider(v as ProviderType); providerRef.current = v as ProviderType; }}
+            disabled={running}
           >
             <SelectTrigger className="w-40" aria-label={t("flowRunner.provider")}>
               <SelectValue />
@@ -213,6 +214,7 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
             onChange={(e) => { setApiSecret(e.target.value); apiSecretRef.current = e.target.value; }}
             placeholder={t("flowRunner.apiSecretPlaceholder", { provider })}
             className="w-64"
+            disabled={running}
           />
         </FormField>
         <FormField label={t("flowRunner.searchQuery")} htmlFor="search-query">
@@ -222,6 +224,7 @@ export function FlowRunner({ adminKey }: FlowRunnerProps) {
             onChange={(e) => { setSearchQuery(e.target.value); searchQueryRef.current = e.target.value; }}
             placeholder={t("flowRunner.searchQueryPlaceholder")}
             className="w-52"
+            disabled={running}
           />
         </FormField>
         <Button onClick={runFlow} disabled={running}>
