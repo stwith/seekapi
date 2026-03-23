@@ -198,7 +198,7 @@ describe("ProjectDetail multi-provider [Task 53]", () => {
     });
   });
 
-  it("shows credential link select and binding provider selector", async () => {
+  it("shows credential link select and grouped bindings", async () => {
     mockApi.getProjectDetail.mockResolvedValue({
       project: { id: "proj-1", name: "Test Project", status: "active" },
       bindings: [
@@ -225,12 +225,10 @@ describe("ProjectDetail multi-provider [Task 53]", () => {
       const credSelect = screen.getByTestId("link-credential-select");
       expect(credSelect).toBeInTheDocument();
 
-      // Binding provider selector
-      const bindSelect = screen.getByTestId("binding-provider-select");
-      expect(bindSelect).toBeInTheDocument();
-
-      // Bindings table shows multi-provider bindings
+      // Bindings grouped by capability with drag-to-reorder
       const bindTable = screen.getByTestId("bindings-table");
+      expect(bindTable.textContent).toContain("search.web");
+      expect(bindTable.textContent).toContain("search.images");
       expect(bindTable.textContent).toContain("brave");
       expect(bindTable.textContent).toContain("serpapi");
     });

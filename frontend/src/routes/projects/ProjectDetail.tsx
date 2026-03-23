@@ -2,10 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api.js";
-import type { ProjectDetail, CreateKeyResult, ProviderInfo, GlobalCredentialMeta } from "@/lib/types.js";
+import type { ProjectDetail, GlobalCredentialMeta, ProviderBinding } from "@/lib/types.js";
 import { StatusBadge } from "@/components/ui/status-badge.js";
 import { LoadingSpinner } from "@/components/ui/loading-skeleton.js";
-import { Input } from "@/components/ui/shadcn/input";
 import { Button } from "@/components/ui/shadcn/button";
 import { Alert, AlertDescription } from "@/components/ui/shadcn/alert";
 import { Separator } from "@/components/ui/shadcn/separator";
@@ -25,8 +24,61 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/shadcn/table";
-import { AlertCircle, ChevronLeft, Copy, KeyRound } from "lucide-react";
+import { AlertCircle, ChevronLeft, GripVertical } from "lucide-react";
 import { FormField } from "@/components/ui/form-field.js";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+/** Sortable table row for drag-and-drop binding priority */
+function SortableBindingRow({
+  binding,
+  onToggle,
+}: {
+  binding: ProviderBinding;
+  onToggle: (enabled: boolean) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: binding.provider,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <TableRow ref={setNodeRef} style={style} className="transition-colors hover:bg-muted/50">
+      <TableCell className="w-8">
+        <button type="button" className="cursor-grab text-muted-foreground hover:text-foreground" {...attributes} {...listeners}>
+          <GripVertical className="size-4" />
+        </button>
+      </TableCell>
+      <TableCell className="font-medium">{binding.provider}</TableCell>
+      <TableCell className="w-16 text-center font-mono text-xs text-muted-foreground">{binding.priority}</TableCell>
+      <TableCell className="w-20">
+        <Switch
+          checked={binding.enabled}
+          onCheckedChange={onToggle}
+          aria-label={`${binding.provider} enabled`}
+        />
+      </TableCell>
+    </TableRow>
+  );
+}
 
 interface ProjectDetailPageProps {
   adminKey: string;
@@ -36,7 +88,6 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   const { t } = useTranslation();
   const { projectId } = useParams<{ projectId: string }>();
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
-  const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,30 +96,17 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   const [linkedCreds, setLinkedCreds] = useState<GlobalCredentialMeta[]>([]);
   const [selectedCredId, setSelectedCredId] = useState("");
 
-  const [bindProvider, setBindProvider] = useState("");
-  const [bindCap, setBindCap] = useState("search.web");
-  const [bindEnabled, setBindEnabled] = useState(true);
-  const [bindPriority, setBindPriority] = useState(0);
-
-  const [revealedKey, setRevealedKey] = useState<CreateKeyResult | null>(null);
-  const [mintingKey, setMintingKey] = useState(false);
-
   const loadDetail = useCallback(async () => {
     if (!projectId) return;
     try {
-      const [d, provResult, globalCredsResult, linkedCredsResult] = await Promise.all([
+      const [d, globalCredsResult, linkedCredsResult] = await Promise.all([
         api.getProjectDetail(adminKey, projectId),
-        api.listProviders(adminKey).catch(() => ({ providers: [] })),
         api.listGlobalCredentials(adminKey).catch(() => ({ credentials: [] })),
         api.listProjectCredentialRefs(adminKey, projectId).catch(() => ({ credentials: [] })),
       ]);
       setDetail(d);
-      setProviders(provResult.providers);
       setGlobalCreds(globalCredsResult.credentials);
       setLinkedCreds(linkedCredsResult.credentials);
-      if (provResult.providers.length > 0) {
-        setBindProvider((prev) => prev || provResult.providers[0]!.id);
-      }
       setError(null);
     } catch (e: unknown) {
       setError((e as Error).message);
@@ -78,6 +116,12 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   }, [adminKey, projectId]);
 
   useEffect(() => { void loadDetail(); }, [loadDetail]);
+
+  // DnD sensors — must be before any early return (Rules of Hooks)
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   if (loading) return <LoadingSpinner />;
   if (error && !detail) {
@@ -92,7 +136,43 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
   }
   if (!detail) return <p className="text-muted-foreground">{t("projects.notFound")}</p>;
 
-  const { project, bindings, keys } = detail;
+  const { project, bindings } = detail;
+
+  /** After drag ends, re-assign priorities for the affected capability group */
+  async function handleDragEnd(capability: string, event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !projectId) return;
+
+    const capBindings = bindings
+      .filter((b) => b.capability === capability)
+      .sort((a, b) => a.priority - b.priority);
+
+    const oldIndex = capBindings.findIndex((b) => b.provider === active.id);
+    const newIndex = capBindings.findIndex((b) => b.provider === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Reorder in place
+    const reordered = [...capBindings];
+    const [moved] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, moved!);
+
+    // Persist new priorities (index = priority)
+    try {
+      await Promise.all(
+        reordered.map((b, i) =>
+          api.configureBinding(adminKey, projectId!, {
+            provider: b.provider,
+            capability: b.capability,
+            enabled: b.enabled,
+            priority: i,
+          }),
+        ),
+      );
+      await loadDetail();
+    } catch (err: unknown) {
+      setError((err as Error).message);
+    }
+  }
 
   // Compute available (not yet linked) credentials
   const linkedIds = new Set(linkedCreds.map((c) => c.id));
@@ -120,39 +200,10 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
     }
   }
 
-  async function handleConfigureBinding(e: React.FormEvent) {
-    e.preventDefault();
-    if (!projectId || !bindProvider) return;
-    try {
-      await api.configureBinding(adminKey, projectId, {
-        provider: bindProvider,
-        capability: bindCap,
-        enabled: bindEnabled,
-        priority: bindPriority,
-      });
-      await loadDetail();
-    } catch (err: unknown) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function handleMintKey() {
+  async function handleBindingToggle(provider: string, capability: string, enabled: boolean, priority: number) {
     if (!projectId) return;
-    setMintingKey(true);
     try {
-      const result = await api.createApiKey(adminKey, projectId);
-      setRevealedKey(result);
-      await loadDetail();
-    } catch (err: unknown) {
-      setError((err as Error).message);
-    } finally {
-      setMintingKey(false);
-    }
-  }
-
-  async function handleDisableKey(keyId: string) {
-    try {
-      await api.disableApiKey(adminKey, keyId);
+      await api.configureBinding(adminKey, projectId, { provider, capability, enabled, priority });
       await loadDetail();
     } catch (err: unknown) {
       setError((err as Error).message);
@@ -241,139 +292,63 @@ export function ProjectDetailPage({ adminKey }: ProjectDetailPageProps) {
 
       <Separator className="my-6" />
 
-      {/* Capability Bindings */}
+      {/* Capability Bindings — grouped by capability, drag to reorder */}
       <section>
         <h2 className="text-sm font-medium text-muted-foreground mb-3">{t("projects.capabilityBindings")}</h2>
-        {bindings.length === 0 ? (
-          <p className="text-sm text-muted-foreground mb-4">{t("projects.noBindings")}</p>
-        ) : (
-          <Table data-testid="bindings-table" className="mb-4">
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("common.provider")}</TableHead>
-                <TableHead>{t("common.capability")}</TableHead>
-                <TableHead>{t("common.enabled")}</TableHead>
-                <TableHead>{t("common.priority")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {bindings.map((b) => (
-                <TableRow key={`${b.provider}-${b.capability}`} className="transition-colors hover:bg-muted/50">
-                  <TableCell>{b.provider}</TableCell>
-                  <TableCell className="font-mono text-xs">{b.capability}</TableCell>
-                  <TableCell>{b.enabled ? t("common.yes") : t("common.no")}</TableCell>
-                  <TableCell className="font-mono">{b.priority}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-        <form onSubmit={handleConfigureBinding} className="flex gap-4 items-end flex-wrap">
-          <FormField label={t("common.provider")}>
-            <Select value={bindProvider} onValueChange={setBindProvider}>
-              <SelectTrigger data-testid="binding-provider-select" className="w-36" aria-label={t("common.provider")}>
-                <SelectValue placeholder={t("common.provider")} />
-              </SelectTrigger>
-              <SelectContent>
-                {providers.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.id}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-          <FormField label={t("common.capability")}>
-            <Select value={bindCap} onValueChange={setBindCap}>
-              <SelectTrigger className="w-40" aria-label={t("common.capability")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="search.web">search.web</SelectItem>
-                <SelectItem value="search.news">search.news</SelectItem>
-                <SelectItem value="search.images">search.images</SelectItem>
-              </SelectContent>
-            </Select>
-          </FormField>
-          <FormField label={t("common.priority")} htmlFor="bind-priority">
-            <Input
-              id="bind-priority"
-              type="number"
-              value={bindPriority}
-              onChange={(e) => setBindPriority(parseInt(e.target.value, 10) || 0)}
-              className="w-20"
-            />
-          </FormField>
-          <div className="flex items-center gap-2 pb-0.5">
-            <Switch checked={bindEnabled} onCheckedChange={setBindEnabled} aria-label={t("common.enabled")} />
-            <span className="text-sm text-muted-foreground">{t("common.enabled")}</span>
-          </div>
-          <Button type="submit" variant="secondary">
-            {t("common.configure")}
-          </Button>
-        </form>
-      </section>
 
-      <Separator className="my-6" />
+        {(() => {
+          const caps = ["search.web", "search.news", "search.images"] as const;
+          const grouped = new Map<string, ProviderBinding[]>();
+          for (const b of bindings) {
+            const list = grouped.get(b.capability) ?? [];
+            list.push(b);
+            grouped.set(b.capability, list);
+          }
 
-      {/* API Keys */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium text-muted-foreground">{t("projects.apiKeys")}</h2>
-          <Button onClick={handleMintKey} disabled={mintingKey} size="sm">
-            <KeyRound className="size-3.5 mr-1.5" />
-            {mintingKey ? t("projects.minting") : t("projects.mintNewKey")}
-          </Button>
-        </div>
+          return (
+            <div data-testid="bindings-table" className="space-y-4">
+              {caps.map((cap) => {
+                const capBindings = (grouped.get(cap) ?? []).sort((a, b) => a.priority - b.priority);
+                const providerIds = capBindings.map((b) => b.provider);
 
-        {revealedKey && (
-          <Alert data-testid="revealed-key" className="mb-4 border-emerald-600/50">
-            <KeyRound className="size-4 text-emerald-500" />
-            <AlertDescription>
-              <p className="font-medium text-emerald-400 mb-1">{t("projects.newKeyTitle")}</p>
-              <pre className="font-mono text-sm select-all bg-muted rounded px-2 py-1 my-1">{revealedKey.rawKey}</pre>
-              <p className="text-xs text-muted-foreground">{t("projects.newKeyMessage")}</p>
-              <div className="flex gap-2 mt-2">
-                <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(revealedKey.rawKey)}>
-                  <Copy className="size-3 mr-1" />{t("common.copy")}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setRevealedKey(null)}>
-                  {t("common.dismiss")}
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {keys.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("projects.noKeys")}</p>
-        ) : (
-          <Table data-testid="keys-table">
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("projects.keyId")}</TableHead>
-                <TableHead>{t("common.status")}</TableHead>
-                <TableHead className="w-24">{t("common.actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {keys.map((k) => (
-                <TableRow key={k.id} className="transition-colors hover:bg-muted/50">
-                  <TableCell className="font-mono text-xs text-muted-foreground">{k.id}</TableCell>
-                  <TableCell>
-                    <StatusBadge variant={k.status === "active" ? "active" : "disabled"} />
-                  </TableCell>
-                  <TableCell>
-                    {k.status === "active" && (
-                      <Button size="sm" variant="destructive" onClick={() => handleDisableKey(k.id)}>
-                        {t("common.disable")}
-                      </Button>
+                return (
+                  <div key={cap} className="border border-border rounded-lg overflow-hidden">
+                    <div className="bg-muted/30 px-4 py-2 text-sm font-mono font-medium">{cap}</div>
+                    {capBindings.length === 0 ? (
+                      <div className="px-4 py-3 text-xs text-muted-foreground">{t("projects.noBindings")}</div>
+                    ) : (
+                      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void handleDragEnd(cap, e)}>
+                        <SortableContext items={providerIds} strategy={verticalListSortingStrategy}>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-8" />
+                                <TableHead>{t("common.provider")}</TableHead>
+                                <TableHead className="w-16 text-center">#</TableHead>
+                                <TableHead className="w-20">{t("common.enabled")}</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {capBindings.map((b) => (
+                                <SortableBindingRow
+                                  key={b.provider}
+                                  binding={b}
+                                  onToggle={(enabled) => void handleBindingToggle(b.provider, b.capability, enabled, b.priority)}
+                                />
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </SortableContext>
+                      </DndContext>
                     )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </section>
+
     </div>
   );
 }
