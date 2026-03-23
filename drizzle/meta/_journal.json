@@ -8,6 +8,13 @@
       "when": 1774086883073,
       "tag": "0000_illegal_valkyrie",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774235400000,
+      "tag": "0001_add_credential_ref_unique",
+      "breakpoints": true
     }
   ]
 }

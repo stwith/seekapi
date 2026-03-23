@@ -467,7 +467,7 @@ export class AdminService {
     return this.deps.credentialRepository.findAllGlobal();
   }
 
-  /** Update a global credential (name and/or secret). */
+  /** Update a global credential (name and/or secret). Only global (projectId=null) credentials allowed. */
   async updateGlobalCredential(credentialId: string, updates: { name?: string; secret?: string }): Promise<void> {
     if (!this.deps.credentialRepository.findById) {
       throw new Error("Credential lookup not supported by this repository");
@@ -475,6 +475,9 @@ export class AdminService {
     const existing = await this.deps.credentialRepository.findById(credentialId);
     if (!existing) {
       throw new AdminError("Credential not found", "CREDENTIAL_NOT_FOUND");
+    }
+    if (existing.projectId !== null) {
+      throw new AdminError("Cannot update a project-scoped credential via the global API", "NOT_GLOBAL_CREDENTIAL");
     }
 
     if (!this.deps.credentialRepository.updateGlobal) {
@@ -490,7 +493,7 @@ export class AdminService {
     await this.deps.credentialRepository.updateGlobal(credentialId, repoUpdates);
   }
 
-  /** Soft-delete a global credential. */
+  /** Soft-delete a global credential. Only global (projectId=null) credentials allowed. */
   async deleteGlobalCredential(credentialId: string): Promise<void> {
     if (!this.deps.credentialRepository.findById) {
       throw new Error("Credential lookup not supported by this repository");
@@ -499,6 +502,9 @@ export class AdminService {
     if (!existing) {
       throw new AdminError("Credential not found", "CREDENTIAL_NOT_FOUND");
     }
+    if (existing.projectId !== null) {
+      throw new AdminError("Cannot delete a project-scoped credential via the global API", "NOT_GLOBAL_CREDENTIAL");
+    }
 
     if (!this.deps.credentialRepository.deleteGlobal) {
       throw new Error("Global credential deletion not supported by this repository");
@@ -506,7 +512,7 @@ export class AdminService {
     await this.deps.credentialRepository.deleteGlobal(credentialId);
   }
 
-  /** Add a project→credential reference. */
+  /** Add a project→credential reference. Only active global credentials can be referenced. */
   async addCredentialRef(projectId: string, credentialId: string): Promise<void> {
     const project = await this.deps.projectRepository.findById(projectId);
     if (!project) {
@@ -519,6 +525,12 @@ export class AdminService {
     const cred = await this.deps.credentialRepository.findById(credentialId);
     if (!cred) {
       throw new AdminError("Credential not found", "CREDENTIAL_NOT_FOUND");
+    }
+    if (cred.projectId !== null) {
+      throw new AdminError("Only global credentials can be referenced by projects", "NOT_GLOBAL_CREDENTIAL");
+    }
+    if (cred.status !== "active") {
+      throw new AdminError("Only active credentials can be referenced", "CREDENTIAL_NOT_ACTIVE");
     }
 
     if (!this.deps.credentialRepository.addProjectRef) {

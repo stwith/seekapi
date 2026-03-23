@@ -170,7 +170,12 @@ export class InMemoryCredentialRepository implements CredentialRepository {
   }
 
   async addProjectRef(ref: ProjectCredentialRef): Promise<void> {
-    this.refs.push(ref);
+    const exists = this.refs.some(
+      (r) => r.projectId === ref.projectId && r.credentialId === ref.credentialId,
+    );
+    if (!exists) {
+      this.refs.push(ref);
+    }
   }
 
   async removeProjectRef(projectId: string, credentialId: string): Promise<void> {
@@ -390,7 +395,7 @@ export class DrizzleCredentialRepository implements CredentialRepository {
       id: ref.id,
       projectId: ref.projectId,
       credentialId: ref.credentialId,
-    });
+    }).onConflictDoNothing();
   }
 
   async removeProjectRef(projectId: string, credentialId: string): Promise<void> {
