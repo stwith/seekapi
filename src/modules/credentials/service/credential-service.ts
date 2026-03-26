@@ -46,6 +46,11 @@ export interface CredentialServiceDeps {
   encryptionKey: string;
 }
 
+export interface ResolvedCredential {
+  credentialId: string;
+  secret: string;
+}
+
 export class CredentialService {
   private readonly deps: CredentialServiceDeps;
 
@@ -54,12 +59,12 @@ export class CredentialService {
   }
 
   /**
-   * Resolve the decrypted provider credential for a project. [AC1][AC2]
+   * Resolve the decrypted provider credential for a project. [AC1][AC2][AC3]
    * Fetches the encrypted secret from the repository, decrypts it
-   * using the configured encryption key, and returns the plaintext.
-   * Never logs the raw secret.
+   * using the configured encryption key, and returns the credential ID
+   * alongside the plaintext secret. Never logs the raw secret.
    */
-  async resolve(projectId: string, provider: string): Promise<string> {
+  async resolve(projectId: string, provider: string): Promise<ResolvedCredential> {
     const row = await this.deps.credentialRepository.findByProjectAndProvider(
       projectId,
       provider,
@@ -69,6 +74,9 @@ export class CredentialService {
         `No credential found for project "${projectId}" / provider "${provider}"`,
       );
     }
-    return decryptSecret(row.encryptedSecret, this.deps.encryptionKey);
+    return {
+      credentialId: row.id,
+      secret: decryptSecret(row.encryptedSecret, this.deps.encryptionKey),
+    };
   }
 }

@@ -148,8 +148,9 @@ describe("Repository-backed CredentialService", () => {
   });
 
   test("resolves and decrypts credential", async () => {
-    const secret = await credentialService.resolve(TEST_PROJECT_ID, "brave");
-    expect(secret).toBe("brave_api_key_value");
+    const result = await credentialService.resolve(TEST_PROJECT_ID, "brave");
+    expect(result.secret).toBe("brave_api_key_value");
+    expect(result.credentialId).toBe("cred_001");
   });
 
   test("throws for missing credential", async () => {

@@ -110,7 +110,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     resolveHealthCredential: async (provider) => {
       if (!healthProbeProjectId) return undefined;
       try {
-        return await credentialService.resolve(healthProbeProjectId, provider);
+        const resolved = await credentialService.resolve(healthProbeProjectId, provider);
+        return resolved.secret;
       } catch {
         return undefined; // no credential for this provider — probe without
       }
@@ -124,8 +125,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   // Search service with routing-backed provider selection [AC2][AC6]
   const searchService = new SearchService({
     registry,
-    resolveCredential: (projectId, provider) =>
-      credentialService.resolve(projectId, provider),
+    resolveCredential: (projectId, provider) => credentialService.resolve(projectId, provider),
     health: healthService,
   });
 

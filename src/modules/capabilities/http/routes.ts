@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Capability } from "../../../providers/core/types.js";
 import { ProviderError } from "../../../providers/core/errors.js";
 import { searchRequestSchema } from "./schemas.js";
-import { SearchService } from "../service/search-service.js";
+import { SearchService, type SearchResult } from "../service/search-service.js";
 import type { UsageService } from "../../usage/service/usage-service.js";
 import type { AuditService } from "../../audit/service/audit-service.js";
 import { generateRequestId } from "../../../lib/request-id.js";
@@ -97,7 +97,7 @@ export async function registerCapabilityRoutes(
       }
 
       try {
-        const result = await searchService.execute(
+        const { response: result, credentialId } = await searchService.execute(
           capability,
           parsed.data,
           requestId,
@@ -114,6 +114,7 @@ export async function registerCapabilityRoutes(
             latencyMs: result.latencyMs,
             resultCount: result.items.length,
             fallbackCount: 0,
+            credentialId,
           });
         }
 
