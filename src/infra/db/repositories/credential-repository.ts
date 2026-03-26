@@ -40,6 +40,11 @@ export interface CredentialRepository {
     projectId: string,
     provider: string,
   ): Promise<CredentialRow | undefined>;
+  /** Find all active credentials for a project + provider (multi-credential). [AC5] */
+  findAllByProjectAndProvider?(
+    projectId: string,
+    provider: string,
+  ): Promise<CredentialRow[]>;
   /** Find all active credential metadata for a project (no raw secret). [Phase 3 AC4][Phase 4D AC6] */
   findMetaByProject?(projectId: string): Promise<CredentialMeta[]>;
   /** Upsert (attach or rotate) a credential for a project + provider. [AC3] */
@@ -72,6 +77,35 @@ export class InMemoryCredentialRepository implements CredentialRepository {
 
   seed(row: CredentialRow): void {
     this.credentials.push(row);
+  }
+
+  async findAllByProjectAndProvider(
+    projectId: string,
+    provider: string,
+  ): Promise<CredentialRow[]> {
+    const results: CredentialRow[] = [];
+    const seen = new Set<string>();
+
+    // 1. Direct match
+    for (const c of this.credentials) {
+      if (c.projectId === projectId && c.provider === provider && c.status === "active" && !seen.has(c.id)) {
+        results.push(c);
+        seen.add(c.id);
+      }
+    }
+
+    // 2. Check refs
+    const refCredIds = this.refs
+      .filter((r) => r.projectId === projectId)
+      .map((r) => r.credentialId);
+    for (const c of this.credentials) {
+      if (refCredIds.includes(c.id) && c.provider === provider && c.status === "active" && !seen.has(c.id)) {
+        results.push(c);
+        seen.add(c.id);
+      }
+    }
+
+    return results;
   }
 
   async findByProjectAndProvider(
