@@ -26,6 +26,8 @@ export interface UsageEvent {
   fallbackCount: number;
   estimatedCost?: string;
   createdAt?: string;
+  /** The specific credential that served this request. [AC1] */
+  credentialId?: string;
 }
 
 /** Persistence sink — implemented by DB repository or in-memory store. */
@@ -50,6 +52,7 @@ export class UsageService {
     latencyMs: number;
     resultCount: number;
     fallbackCount: number;
+    credentialId?: string;
   }): Promise<void> {
     const event: UsageEvent = {
       ...params,
@@ -88,6 +91,7 @@ export class UsageService {
     latencyMs: number;
     fallbackCount?: number;
     errorCode?: string;
+    credentialId?: string;
   }): Promise<void> {
     const event: UsageEvent = {
       ...params,

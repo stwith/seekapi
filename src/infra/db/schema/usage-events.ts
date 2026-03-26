@@ -21,6 +21,8 @@ export const usageEvents = pgTable("usage_events", {
   resultCount: integer("result_count").notNull().default(0),
   fallbackCount: integer("fallback_count").notNull().default(0),
   estimatedCost: numeric("estimated_cost", { precision: 12, scale: 6 }),
+  /** Credential that served this request. Nullable for backward compat. [AC1] */
+  credentialId: uuid("credential_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

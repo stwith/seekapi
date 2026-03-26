@@ -239,6 +239,7 @@ export class DrizzleUsageEventRepository implements UsageEventRepository {
       resultCount: event.resultCount,
       fallbackCount: event.fallbackCount,
       estimatedCost: event.estimatedCost ?? null,
+      credentialId: event.credentialId ?? null,
     });
   }
 
@@ -256,6 +257,7 @@ export class DrizzleUsageEventRepository implements UsageEventRepository {
       resultCount: r.resultCount,
       fallbackCount: r.fallbackCount,
       estimatedCost: r.estimatedCost ?? undefined,
+      credentialId: r.credentialId ?? undefined,
     }));
   }
 
@@ -272,6 +274,7 @@ export class DrizzleUsageEventRepository implements UsageEventRepository {
       resultCount: r.resultCount,
       fallbackCount: r.fallbackCount,
       estimatedCost: r.estimatedCost ?? undefined,
+      credentialId: r.credentialId ?? undefined,
       createdAt: r.createdAt?.toISOString(),
     };
   }
