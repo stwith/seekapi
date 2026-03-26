@@ -630,10 +630,19 @@ export class AdminService {
     dailyLimit: number | null;
     monthlyLimit: number | null;
   }> {
-    const { credentialCapacityRepository } = this.deps;
+    const { credentialCapacityRepository, credentialRepository } = this.deps;
     if (!credentialCapacityRepository) {
       throw new AdminError("Credential capacity not configured", "NOT_CONFIGURED");
     }
+
+    // Verify credential exists
+    if (credentialRepository.findById) {
+      const cred = await credentialRepository.findById(credentialId);
+      if (!cred) {
+        throw new AdminError("Credential not found", "CREDENTIAL_NOT_FOUND");
+      }
+    }
+
     await credentialCapacityRepository.upsert({
       credentialId,
       dailyLimit: input.dailyLimit,

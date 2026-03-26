@@ -607,11 +607,27 @@ export async function registerAdminRoutes(
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { credentialId } = req.params as { credentialId: string };
       const body = req.body as { dailyLimit?: number | null; monthlyLimit?: number | null } | undefined;
-      const result = await adminService.upsertCredentialCapacity(credentialId, {
-        dailyLimit: body?.dailyLimit,
-        monthlyLimit: body?.monthlyLimit,
-      });
-      return reply.send(result);
+
+      // Validate limits are non-negative when provided
+      if (body?.dailyLimit !== undefined && body.dailyLimit !== null && (typeof body.dailyLimit !== "number" || body.dailyLimit < 0)) {
+        return reply.status(400).send({ error: "BAD_REQUEST", message: "dailyLimit must be a non-negative number" });
+      }
+      if (body?.monthlyLimit !== undefined && body.monthlyLimit !== null && (typeof body.monthlyLimit !== "number" || body.monthlyLimit < 0)) {
+        return reply.status(400).send({ error: "BAD_REQUEST", message: "monthlyLimit must be a non-negative number" });
+      }
+
+      try {
+        const result = await adminService.upsertCredentialCapacity(credentialId, {
+          dailyLimit: body?.dailyLimit,
+          monthlyLimit: body?.monthlyLimit,
+        });
+        return reply.send(result);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "CREDENTIAL_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
     },
   );
 

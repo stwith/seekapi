@@ -88,4 +88,34 @@ describe("AC7 — Admin credential capacity/usage endpoints", () => {
     });
     expect(res.statusCode).toBe(401);
   });
+
+  it("PUT capacity rejects negative dailyLimit", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: `/v1/admin/credentials/${TEST_GLOBAL_CREDENTIAL_ID}/capacity`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { dailyLimit: -5, monthlyLimit: 100 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("PUT capacity rejects negative monthlyLimit", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: `/v1/admin/credentials/${TEST_GLOBAL_CREDENTIAL_ID}/capacity`,
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { dailyLimit: 100, monthlyLimit: -1 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("PUT capacity returns 404 for non-existent credential", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: "/v1/admin/credentials/cred_nonexistent_xyz/capacity",
+      headers: { authorization: `Bearer ${ADMIN_KEY}` },
+      payload: { dailyLimit: 100 },
+    });
+    expect(res.statusCode).toBe(404);
+  });
 });
