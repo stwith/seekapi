@@ -4,6 +4,10 @@
  * Stores per-credential daily and monthly request limits.
  */
 
+import { eq } from "drizzle-orm";
+import type { DbClient } from "../client.js";
+import { credentialCapacities } from "../schema/credential-capacities.js";
+
 export interface CredentialCapacity {
   credentialId: string;
   dailyLimit: number | null;
@@ -42,5 +46,50 @@ export class InMemoryCredentialCapacityRepository implements CredentialCapacityR
 
   async delete(credentialId: string): Promise<void> {
     this.capacities.delete(credentialId);
+  }
+}
+
+/**
+ * Drizzle-backed implementation for production persistence. [AC2]
+ */
+export class DrizzleCredentialCapacityRepository implements CredentialCapacityRepository {
+  constructor(private readonly db: DbClient) {}
+
+  async findByCredentialId(credentialId: string): Promise<CredentialCapacity | undefined> {
+    const rows = await this.db
+      .select({
+        credentialId: credentialCapacities.credentialId,
+        dailyLimit: credentialCapacities.dailyLimit,
+        monthlyLimit: credentialCapacities.monthlyLimit,
+      })
+      .from(credentialCapacities)
+      .where(eq(credentialCapacities.credentialId, credentialId))
+      .limit(1);
+    return rows[0] ?? undefined;
+  }
+
+  async upsert(input: CredentialCapacityInput): Promise<void> {
+    const existing = await this.findByCredentialId(input.credentialId);
+    if (existing) {
+      await this.db
+        .update(credentialCapacities)
+        .set({
+          dailyLimit: input.dailyLimit ?? null,
+          monthlyLimit: input.monthlyLimit ?? null,
+        })
+        .where(eq(credentialCapacities.credentialId, input.credentialId));
+    } else {
+      await this.db.insert(credentialCapacities).values({
+        credentialId: input.credentialId,
+        dailyLimit: input.dailyLimit ?? null,
+        monthlyLimit: input.monthlyLimit ?? null,
+      });
+    }
+  }
+
+  async delete(credentialId: string): Promise<void> {
+    await this.db
+      .delete(credentialCapacities)
+      .where(eq(credentialCapacities.credentialId, credentialId));
   }
 }

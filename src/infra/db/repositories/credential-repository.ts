@@ -285,6 +285,56 @@ export class DrizzleCredentialRepository implements CredentialRepository {
     return refRows[0];
   }
 
+  async findAllByProjectAndProvider(
+    projectId: string,
+    provider: string,
+  ): Promise<CredentialRow[]> {
+    const selectFields = {
+      id: providerCredentials.id,
+      projectId: providerCredentials.projectId,
+      name: providerCredentials.name,
+      provider: providerCredentials.provider,
+      encryptedSecret: providerCredentials.encryptedSecret,
+      status: providerCredentials.status,
+    };
+
+    // 1. Direct match
+    const directRows = await this.db
+      .select(selectFields)
+      .from(providerCredentials)
+      .where(
+        and(
+          eq(providerCredentials.projectId, projectId),
+          eq(providerCredentials.provider, provider),
+          eq(providerCredentials.status, "active"),
+        ),
+      );
+
+    // 2. Referenced credentials
+    const refRows = await this.db
+      .select(selectFields)
+      .from(projectCredentialRefs)
+      .innerJoin(providerCredentials, eq(projectCredentialRefs.credentialId, providerCredentials.id))
+      .where(
+        and(
+          eq(projectCredentialRefs.projectId, projectId),
+          eq(providerCredentials.provider, provider),
+          eq(providerCredentials.status, "active"),
+        ),
+      );
+
+    // Merge, dedup by id
+    const seen = new Set<string>();
+    const results: CredentialRow[] = [];
+    for (const row of [...directRows, ...refRows]) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        results.push(row);
+      }
+    }
+    return results;
+  }
+
   async findMetaByProject(projectId: string): Promise<CredentialMeta[]> {
     // Direct credentials
     const direct = await this.db

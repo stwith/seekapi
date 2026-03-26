@@ -93,6 +93,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const credentialService = new CredentialService({
     credentialRepository,
     encryptionKey,
+    capacityRepository: opts.credentialCapacityRepository,
+    usageEventRepository,
   });
 
   // Provider registry [AC6]
@@ -128,7 +130,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   // Search service with routing-backed provider selection [AC2][AC6]
   const searchService = new SearchService({
     registry,
-    resolveCredential: (projectId, provider) => credentialService.resolve(projectId, provider),
+    resolveCredential: (projectId, provider) => credentialService.resolveWithCapacity(projectId, provider),
     health: healthService,
   });
 

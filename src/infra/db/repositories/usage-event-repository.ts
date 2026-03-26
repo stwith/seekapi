@@ -89,6 +89,8 @@ export interface UsageEventRepository extends UsageEventSink {
   providerStats?(filters: UsageQueryFilters): Promise<ProviderBreakdown[]>;
   /** Count usage events for a specific credential in a time window. [AC2] */
   countByCredential?(credentialId: string, period: "day" | "month"): Promise<number>;
+  /** Count all-time usage events for a specific credential. [AC7] */
+  countByCredentialTotal?(credentialId: string): Promise<number>;
 }
 
 /**
@@ -235,6 +237,10 @@ export class InMemoryUsageEventRepository implements UsageEventRepository {
       const ts = this.timestamps.get(e.requestId) ?? new Date();
       return ts >= windowStart;
     }).length;
+  }
+
+  async countByCredentialTotal(credentialId: string): Promise<number> {
+    return this.events.filter((e) => e.credentialId === credentialId).length;
   }
 }
 
@@ -467,5 +473,37 @@ export class DrizzleUsageEventRepository implements UsageEventRepository {
       failureCount: Number(r.failureCount),
       avgLatencyMs: Number(r.avgLatencyMs ?? 0),
     }));
+  }
+
+  async countByCredential(credentialId: string, period: "day" | "month"): Promise<number> {
+    const { and, eq, gte, count } = await import("drizzle-orm");
+    const now = new Date();
+    const windowStart = new Date(now);
+    if (period === "day") {
+      windowStart.setHours(0, 0, 0, 0);
+    } else {
+      windowStart.setDate(1);
+      windowStart.setHours(0, 0, 0, 0);
+    }
+
+    const [result] = await this.db
+      .select({ total: count() })
+      .from(usageEvents)
+      .where(
+        and(
+          eq(usageEvents.credentialId, credentialId),
+          gte(usageEvents.createdAt, windowStart),
+        ),
+      );
+    return result?.total ?? 0;
+  }
+
+  async countByCredentialTotal(credentialId: string): Promise<number> {
+    const { eq, count } = await import("drizzle-orm");
+    const [result] = await this.db
+      .select({ total: count() })
+      .from(usageEvents)
+      .where(eq(usageEvents.credentialId, credentialId));
+    return result?.total ?? 0;
   }
 }

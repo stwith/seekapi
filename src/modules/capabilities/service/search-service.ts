@@ -64,35 +64,43 @@ export class SearchService {
     const { registry, resolveCredential } = this.deps;
     let resolvedCredentialId: string | undefined;
 
-    const response = await routing.executeWithFallback(
-      capability,
-      body.provider,
-      async (providerId) => {
-        const adapter = registry.getOrThrow(providerId);
-        const resolved = await resolveCredential(
-          projectContext.projectId,
-          providerId,
-        );
-        resolvedCredentialId = resolved.credentialId;
+    try {
+      const response = await routing.executeWithFallback(
+        capability,
+        body.provider,
+        async (providerId) => {
+          const adapter = registry.getOrThrow(providerId);
+          const resolved = await resolveCredential(
+            projectContext.projectId,
+            providerId,
+          );
+          resolvedCredentialId = resolved.credentialId;
 
-        const req: CanonicalSearchRequest = {
-          capability,
-          query: body.query,
-          maxResults: body.max_results,
-          country: body.country,
-          locale: body.locale,
-          includeDomains: body.include_domains,
-          excludeDomains: body.exclude_domains,
-          timeRange: body.time_range,
-          provider: body.provider,
-          options: body.options,
-        };
+          const req: CanonicalSearchRequest = {
+            capability,
+            query: body.query,
+            maxResults: body.max_results,
+            country: body.country,
+            locale: body.locale,
+            includeDomains: body.include_domains,
+            excludeDomains: body.exclude_domains,
+            timeRange: body.time_range,
+            provider: body.provider,
+            options: body.options,
+          };
 
-        return adapter.execute(req, { credential: resolved.secret, requestId });
-      },
-    );
+          return adapter.execute(req, { credential: resolved.secret, requestId });
+        },
+      );
 
-    return { response, credentialId: resolvedCredentialId };
+      return { response, credentialId: resolvedCredentialId };
+    } catch (err) {
+      // Attach credentialId to the error so callers can attribute failures [AC4]
+      if (resolvedCredentialId && err instanceof Error) {
+        (err as Error & { credentialId?: string }).credentialId = resolvedCredentialId;
+      }
+      throw err;
+    }
   }
 
   private stub(

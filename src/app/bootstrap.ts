@@ -26,6 +26,8 @@ import type { AuditLogRepository } from "../infra/db/repositories/audit-log-repo
 import type { HealthSnapshotRepository } from "../infra/db/repositories/health-snapshot-repository.js";
 import { InMemoryQuotaRepository, DrizzleQuotaRepository } from "../infra/db/repositories/quota-repository.js";
 import type { QuotaRepository } from "../infra/db/repositories/quota-repository.js";
+import { InMemoryCredentialCapacityRepository, DrizzleCredentialCapacityRepository } from "../infra/db/repositories/credential-capacity-repository.js";
+import type { CredentialCapacityRepository } from "../infra/db/repositories/credential-capacity-repository.js";
 
 export interface BootstrapResult {
   apiKeyRepository: ApiKeyRepository;
@@ -35,6 +37,7 @@ export interface BootstrapResult {
   auditLogRepository: AuditLogRepository;
   healthSnapshotRepository: HealthSnapshotRepository;
   quotaRepository: QuotaRepository;
+  credentialCapacityRepository: CredentialCapacityRepository;
   encryptionKey: string;
 }
 
@@ -59,6 +62,7 @@ export function bootstrapFromEnv(): BootstrapResult {
       auditLogRepository: new DrizzleAuditLogRepository(db),
       healthSnapshotRepository: new DrizzleHealthSnapshotRepository(db),
       quotaRepository: new DrizzleQuotaRepository(db),
+      credentialCapacityRepository: new DrizzleCredentialCapacityRepository(db),
       encryptionKey,
     };
   }
@@ -148,6 +152,7 @@ export function bootstrapFromEnv(): BootstrapResult {
   const auditLogRepository = new InMemoryAuditLogRepository();
   const healthSnapshotRepository = new InMemoryHealthSnapshotRepository();
   const quotaRepository = new InMemoryQuotaRepository();
+  const credentialCapacityRepository = new InMemoryCredentialCapacityRepository();
 
   return {
     apiKeyRepository,
@@ -157,6 +162,7 @@ export function bootstrapFromEnv(): BootstrapResult {
     auditLogRepository,
     healthSnapshotRepository,
     quotaRepository,
+    credentialCapacityRepository,
     encryptionKey,
   };
 }

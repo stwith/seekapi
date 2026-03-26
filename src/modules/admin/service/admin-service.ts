@@ -660,9 +660,12 @@ export class AdminService {
     const monthlyRequests = usageEventRepository?.countByCredential
       ? await usageEventRepository.countByCredential(credentialId, "month")
       : 0;
+    const totalRequests = usageEventRepository?.countByCredentialTotal
+      ? await usageEventRepository.countByCredentialTotal(credentialId)
+      : 0;
     return {
       credentialId,
-      totalRequests: monthlyRequests, // best available without full aggregation
+      totalRequests,
       dailyRequests,
       monthlyRequests,
     };

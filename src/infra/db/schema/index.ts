@@ -8,3 +8,4 @@ export { auditLogs } from "./audit-logs.js";
 export { providerHealthSnapshots } from "./provider-health-snapshots.js";
 export { projectQuotas } from "./project-quotas.js";
 export { projectCredentialRefs } from "./project-credential-refs.js";
+export { credentialCapacities } from "./credential-capacities.js";
