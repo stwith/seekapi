@@ -157,7 +157,14 @@
     "deleteCredential": "Delete Credential",
     "deleteConfirm": "Are you sure you want to delete credential \"{{name}}\"?",
     "editName": "Edit Name",
-    "newName": "New Name"
+    "newName": "New Name",
+    "usage": "Usage",
+    "capacity": "Capacity",
+    "dailyUsage": "Daily",
+    "monthlyUsage": "Monthly",
+    "remaining": "remaining",
+    "unlimited": "unlimited",
+    "noLimit": "No limit"
   },
   "subscriptions": {
     "title": "Subscriptions & Quotas",

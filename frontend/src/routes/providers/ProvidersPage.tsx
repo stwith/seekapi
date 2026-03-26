@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api.js";
-import type { ProviderInfo, GlobalCredentialMeta } from "@/lib/api.js";
+import type { ProviderInfo, GlobalCredentialMeta, CredentialUsage, CredentialCapacity } from "@/lib/api.js";
 import { StatusBadge } from "@/components/ui/status-badge.js";
 import { Skeleton } from "@/components/ui/shadcn/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/shadcn/alert";
@@ -52,6 +52,10 @@ export function ProvidersPage({ adminKey }: ProvidersPageProps) {
   const [editTarget, setEditTarget] = useState<GlobalCredentialMeta | null>(null);
   const [editName, setEditName] = useState("");
 
+  // Usage/capacity state [AC8]
+  const [credUsage, setCredUsage] = useState<Record<string, CredentialUsage>>({});
+  const [credCapacity, setCredCapacity] = useState<Record<string, CredentialCapacity>>({});
+
   useEffect(() => {
     (async () => {
       try {
@@ -61,6 +65,23 @@ export function ProvidersPage({ adminKey }: ProvidersPageProps) {
         ]);
         setProviders(provResult.providers);
         setGlobalCreds(credsResult.credentials);
+
+        // Fetch usage and capacity for each credential [AC8]
+        const creds = credsResult.credentials ?? [];
+        const usageMap: Record<string, CredentialUsage> = {};
+        const capMap: Record<string, CredentialCapacity> = {};
+        await Promise.all(
+          creds.map(async (cred: GlobalCredentialMeta) => {
+            try {
+              usageMap[cred.id] = await api.getCredentialUsage(adminKey, cred.id);
+            } catch { /* no usage data */ }
+            try {
+              capMap[cred.id] = await api.getCredentialCapacity(adminKey, cred.id);
+            } catch { /* no capacity set */ }
+          }),
+        );
+        setCredUsage(usageMap);
+        setCredCapacity(capMap);
 
         if (provResult.providers.length > 0) {
           const defaultProv = provResult.providers[0]!.id;
@@ -180,6 +201,8 @@ export function ProvidersPage({ adminKey }: ProvidersPageProps) {
                 <TableHead>{t("common.name")}</TableHead>
                 <TableHead>{t("common.provider")}</TableHead>
                 <TableHead>{t("common.status")}</TableHead>
+                <TableHead>{t("providers.usage")}</TableHead>
+                <TableHead>{t("providers.capacity")}</TableHead>
                 <TableHead>{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -213,6 +236,36 @@ export function ProvidersPage({ adminKey }: ProvidersPageProps) {
                   <TableCell>{cred.provider}</TableCell>
                   <TableCell>
                     <StatusBadge variant={cred.status === "active" ? "active" : "disabled"} label={cred.status} />
+                  </TableCell>
+                  <TableCell>
+                    {credUsage[cred.id] ? (
+                      <div className="text-xs space-y-0.5">
+                        <div>{t("providers.dailyUsage")}: {credUsage[cred.id]!.dailyRequests}</div>
+                        <div>{t("providers.monthlyUsage")}: {credUsage[cred.id]!.monthlyRequests}</div>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {credCapacity[cred.id] ? (
+                      <div className="text-xs space-y-0.5">
+                        <div>
+                          {t("providers.dailyUsage")}:{" "}
+                          {credCapacity[cred.id]!.dailyLimit != null
+                            ? `${credCapacity[cred.id]!.currentDailyUsage ?? 0} / ${credCapacity[cred.id]!.dailyLimit}`
+                            : t("providers.noLimit")}
+                        </div>
+                        <div>
+                          {t("providers.monthlyUsage")}:{" "}
+                          {credCapacity[cred.id]!.monthlyLimit != null
+                            ? `${credCapacity[cred.id]!.currentMonthlyUsage ?? 0} / ${credCapacity[cred.id]!.monthlyLimit}`
+                            : t("providers.noLimit")}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">{t("providers.noLimit")}</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
