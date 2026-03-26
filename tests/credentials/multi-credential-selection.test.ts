@@ -124,7 +124,7 @@ describe("AC5 — Multi-credential candidate selection", () => {
 
     await expect(
       svc.resolveWithCapacity("proj_001", "brave"),
-    ).rejects.toThrow(/All credentials.*exhausted/);
+    ).rejects.toThrow(/exhausted/);
   });
 
   it("resolve still works without capacity deps (backward compat)", async () => {

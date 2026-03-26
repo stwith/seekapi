@@ -52,6 +52,15 @@ export interface CredentialServiceDeps {
   usageEventRepository?: UsageEventRepository;
 }
 
+/** Error thrown when all credentials for a provider are capacity-exhausted. [AC6] */
+export class CredentialExhaustedError extends Error {
+  readonly code = "CREDENTIAL_EXHAUSTED";
+  constructor(projectId: string, provider: string) {
+    super(`All credentials for project "${projectId}" / provider "${provider}" are exhausted`);
+    this.name = "CredentialExhaustedError";
+  }
+}
+
 export interface ResolvedCredential {
   credentialId: string;
   secret: string;
@@ -139,8 +148,6 @@ export class CredentialService {
       };
     }
 
-    throw new Error(
-      `All credentials for project "${projectId}" / provider "${provider}" are exhausted`,
-    );
+    throw new CredentialExhaustedError(projectId, provider);
   }
 }

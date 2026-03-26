@@ -61,6 +61,11 @@ export function classifyError(err: unknown): ClassifiedError {
     return { category: "rate_limit_project", retryable: false, original: err };
   }
 
+  // Credential exhausted — retryable on a different provider [AC6]
+  if (code === "CREDENTIAL_EXHAUSTED") {
+    return { category: "retryable", retryable: true, original: err };
+  }
+
   // Provider rate limit — retryable on a different provider
   if (statusCode === 429 || code === "RATE_LIMITED") {
     return { category: "retryable", retryable: true, original: err };
