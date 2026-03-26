@@ -583,6 +583,48 @@ export async function registerAdminRoutes(
     },
   );
 
+  // --- Credential capacity [AC7] ---
+  app.get(
+    "/v1/admin/credentials/:credentialId/capacity",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { credentialId } = req.params as { credentialId: string };
+      try {
+        const result = await adminService.getCredentialCapacity(credentialId);
+        return reply.send(result);
+      } catch (err) {
+        if (err instanceof AdminError && err.code === "CAPACITY_NOT_FOUND") {
+          return reply.status(404).send({ error: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    },
+  );
+
+  app.put(
+    "/v1/admin/credentials/:credentialId/capacity",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { credentialId } = req.params as { credentialId: string };
+      const body = req.body as { dailyLimit?: number | null; monthlyLimit?: number | null } | undefined;
+      const result = await adminService.upsertCredentialCapacity(credentialId, {
+        dailyLimit: body?.dailyLimit,
+        monthlyLimit: body?.monthlyLimit,
+      });
+      return reply.send(result);
+    },
+  );
+
+  app.get(
+    "/v1/admin/credentials/:credentialId/usage",
+    { preHandler: checkAdminAuth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { credentialId } = req.params as { credentialId: string };
+      const result = await adminService.getCredentialUsage(credentialId);
+      return reply.send(result);
+    },
+  );
+
   // --- Configure binding ---
   app.post(
     "/v1/admin/projects/:projectId/bindings",

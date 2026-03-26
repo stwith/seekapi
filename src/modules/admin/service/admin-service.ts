@@ -27,6 +27,7 @@ import type { UsageEvent } from "../../usage/service/usage-service.js";
 import type { AuditLogRepository, AuditQueryFilters } from "../../../infra/db/repositories/audit-log-repository.js";
 import type { AuditEntry } from "../../audit/service/audit-service.js";
 import type { QuotaRepository, ProjectQuota } from "../../../infra/db/repositories/quota-repository.js";
+import type { CredentialCapacityRepository, CredentialCapacity } from "../../../infra/db/repositories/credential-capacity-repository.js";
 
 /** Providers allowed in the current phase (Brave-only). */
 const ALLOWED_PROVIDERS = new Set(["brave", "tavily", "kagi", "serpapi"]);
@@ -45,6 +46,8 @@ export interface AdminServiceDeps {
   auditLogRepository?: AuditLogRepository;
   /** Quota repository for quota management. [Task 38] */
   quotaRepository?: QuotaRepository;
+  /** Credential capacity repository for capacity management. [AC7] */
+  credentialCapacityRepository?: CredentialCapacityRepository;
 }
 
 export interface CreateProjectResult {
@@ -583,6 +586,86 @@ export class AdminService {
       return [];
     }
     return this.deps.credentialRepository.findRefsByProject(projectId);
+  }
+
+  // --- Credential capacity management [AC7] ---
+
+  async getCredentialCapacity(credentialId: string): Promise<{
+    credentialId: string;
+    dailyLimit: number | null;
+    monthlyLimit: number | null;
+    currentDailyUsage: number;
+    currentMonthlyUsage: number;
+  }> {
+    const { credentialCapacityRepository, usageEventRepository } = this.deps;
+    if (!credentialCapacityRepository) {
+      throw new AdminError("Credential capacity not configured", "NOT_CONFIGURED");
+    }
+    const capacity = await credentialCapacityRepository.findByCredentialId(credentialId);
+    if (!capacity) {
+      throw new AdminError("No capacity config for this credential", "CAPACITY_NOT_FOUND");
+    }
+
+    const dailyUsage = usageEventRepository?.countByCredential
+      ? await usageEventRepository.countByCredential(credentialId, "day")
+      : 0;
+    const monthlyUsage = usageEventRepository?.countByCredential
+      ? await usageEventRepository.countByCredential(credentialId, "month")
+      : 0;
+
+    return {
+      credentialId,
+      dailyLimit: capacity.dailyLimit,
+      monthlyLimit: capacity.monthlyLimit,
+      currentDailyUsage: dailyUsage,
+      currentMonthlyUsage: monthlyUsage,
+    };
+  }
+
+  async upsertCredentialCapacity(credentialId: string, input: {
+    dailyLimit?: number | null;
+    monthlyLimit?: number | null;
+  }): Promise<{
+    credentialId: string;
+    dailyLimit: number | null;
+    monthlyLimit: number | null;
+  }> {
+    const { credentialCapacityRepository } = this.deps;
+    if (!credentialCapacityRepository) {
+      throw new AdminError("Credential capacity not configured", "NOT_CONFIGURED");
+    }
+    await credentialCapacityRepository.upsert({
+      credentialId,
+      dailyLimit: input.dailyLimit,
+      monthlyLimit: input.monthlyLimit,
+    });
+    const saved = await credentialCapacityRepository.findByCredentialId(credentialId);
+    return {
+      credentialId,
+      dailyLimit: saved?.dailyLimit ?? null,
+      monthlyLimit: saved?.monthlyLimit ?? null,
+    };
+  }
+
+  async getCredentialUsage(credentialId: string): Promise<{
+    credentialId: string;
+    totalRequests: number;
+    dailyRequests: number;
+    monthlyRequests: number;
+  }> {
+    const { usageEventRepository } = this.deps;
+    const dailyRequests = usageEventRepository?.countByCredential
+      ? await usageEventRepository.countByCredential(credentialId, "day")
+      : 0;
+    const monthlyRequests = usageEventRepository?.countByCredential
+      ? await usageEventRepository.countByCredential(credentialId, "month")
+      : 0;
+    return {
+      credentialId,
+      totalRequests: monthlyRequests, // best available without full aggregation
+      dailyRequests,
+      monthlyRequests,
+    };
   }
 }
 
