@@ -87,6 +87,8 @@ export interface UsageEventRepository extends UsageEventSink {
   perKeyStats?(projectId: string): Promise<KeyUsageStats[]>;
   /** Per-provider breakdown. [Phase 4D AC3] */
   providerStats?(filters: UsageQueryFilters): Promise<ProviderBreakdown[]>;
+  /** Count usage events for a specific credential in a time window. [AC2] */
+  countByCredential?(credentialId: string, period: "day" | "month"): Promise<number>;
 }
 
 /**
@@ -217,6 +219,22 @@ export class InMemoryUsageEventRepository implements UsageEventRepository {
         avgLatencyMs: events.reduce((sum, e) => sum + e.latencyMs, 0) / events.length,
       }))
       .sort((a, b) => b.requestCount - a.requestCount);
+  }
+
+  async countByCredential(credentialId: string, period: "day" | "month"): Promise<number> {
+    const now = new Date();
+    const windowStart = new Date(now);
+    if (period === "day") {
+      windowStart.setHours(0, 0, 0, 0);
+    } else {
+      windowStart.setDate(1);
+      windowStart.setHours(0, 0, 0, 0);
+    }
+    return this.events.filter((e) => {
+      if (e.credentialId !== credentialId) return false;
+      const ts = this.timestamps.get(e.requestId) ?? new Date();
+      return ts >= windowStart;
+    }).length;
   }
 }
 
