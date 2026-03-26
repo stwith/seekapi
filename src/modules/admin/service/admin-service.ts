@@ -27,7 +27,7 @@ import type { UsageEvent } from "../../usage/service/usage-service.js";
 import type { AuditLogRepository, AuditQueryFilters } from "../../../infra/db/repositories/audit-log-repository.js";
 import type { AuditEntry } from "../../audit/service/audit-service.js";
 import type { QuotaRepository, ProjectQuota } from "../../../infra/db/repositories/quota-repository.js";
-import type { CredentialCapacityRepository, CredentialCapacity } from "../../../infra/db/repositories/credential-capacity-repository.js";
+import type { CredentialCapacityRepository } from "../../../infra/db/repositories/credential-capacity-repository.js";
 
 /** Providers allowed in the current phase (Brave-only). */
 const ALLOWED_PROVIDERS = new Set(["brave", "tavily", "kagi", "serpapi"]);

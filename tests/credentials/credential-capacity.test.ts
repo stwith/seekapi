@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   InMemoryCredentialCapacityRepository,
-  type CredentialCapacity,
 } from "../../src/infra/db/repositories/credential-capacity-repository.js";
 import { InMemoryUsageEventRepository } from "../../src/infra/db/repositories/usage-event-repository.js";
 import type { UsageEvent } from "../../src/modules/usage/service/usage-service.js";

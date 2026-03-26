@@ -5,8 +5,6 @@ import type { ProviderAdapter, Capability } from "../../src/providers/core/types
 import { ProviderRegistry } from "../../src/providers/core/registry.js";
 import type { ProjectContext } from "../../src/modules/projects/service/project-service.js";
 
-const KEY_HEX = "a".repeat(64);
-
 function makeStubAdapter(id: string): ProviderAdapter {
   return {
     id,
@@ -97,11 +95,9 @@ describe("AC6 — Runtime exclusion of hard-exhausted credentials", () => {
     registry.register(braveAdapter);
     registry.register(tavilyAdapter);
 
-    let callCount = 0;
     const deps: SearchServiceDeps = {
       registry,
       resolveCredential: async (_projectId, provider) => {
-        callCount++;
         if (provider === "brave") {
           throw new CredentialExhaustedError("proj_001", provider);
         }

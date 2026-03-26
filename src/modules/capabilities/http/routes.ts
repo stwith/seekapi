@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Capability } from "../../../providers/core/types.js";
 import { ProviderError } from "../../../providers/core/errors.js";
 import { searchRequestSchema } from "./schemas.js";
-import { SearchService, type SearchResult } from "../service/search-service.js";
+import { SearchService } from "../service/search-service.js";
 import type { UsageService } from "../../usage/service/usage-service.js";
 import type { AuditService } from "../../audit/service/audit-service.js";
 import { generateRequestId } from "../../../lib/request-id.js";
