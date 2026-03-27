@@ -96,13 +96,16 @@ export async function registerCapabilityRoutes(
         });
       }
 
+      let credentialId: string | undefined;
       try {
-        const result = await searchService.execute(
+        const searchResult = await searchService.execute(
           capability,
           parsed.data,
           requestId,
           projectContext,
         );
+        const result = searchResult.response;
+        credentialId = searchResult.credentialId;
 
         if (usageService && projectId) {
           await usageService.recordSuccess({
@@ -114,6 +117,7 @@ export async function registerCapabilityRoutes(
             latencyMs: result.latencyMs,
             resultCount: result.items.length,
             fallbackCount: 0,
+            credentialId,
           });
         }
 
@@ -137,6 +141,11 @@ export async function registerCapabilityRoutes(
       } catch (err) {
         const latencyMs = Date.now() - start;
 
+        // Extract credentialId from error if attached by SearchService [AC4]
+        if (!credentialId && err instanceof Error && "credentialId" in err) {
+          credentialId = (err as Error & { credentialId?: string }).credentialId;
+        }
+
         // Extract actual provider from ProviderError if available
         const errorProvider =
           err instanceof ProviderError ? err.provider : resolvedProvider;
@@ -156,6 +165,7 @@ export async function registerCapabilityRoutes(
             capability,
             statusCode: downstreamStatus,
             latencyMs,
+            credentialId,
           });
         }
 

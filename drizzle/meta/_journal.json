@@ -15,6 +15,13 @@
       "when": 1774235400000,
       "tag": "0001_add_credential_ref_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774517400000,
+      "tag": "0002_credential_capacity_and_usage_attribution",
+      "breakpoints": true
     }
   ]
 }

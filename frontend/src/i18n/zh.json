@@ -157,7 +157,14 @@
     "deleteCredential": "\u5220\u9664\u51ed\u8bc1",
     "deleteConfirm": "\u786e\u5b9a\u5220\u9664\u51ed\u8bc1 \"{{name}}\"\uff1f",
     "editName": "\u7f16\u8f91\u540d\u79f0",
-    "newName": "\u65b0\u540d\u79f0"
+    "newName": "\u65b0\u540d\u79f0",
+    "usage": "\u7528\u91cf",
+    "capacity": "\u5bb9\u91cf",
+    "dailyUsage": "\u6bcf\u65e5",
+    "monthlyUsage": "\u6bcf\u6708",
+    "remaining": "\u5269\u4f59",
+    "unlimited": "\u65e0\u9650\u5236",
+    "noLimit": "\u672a\u8bbe\u7f6e\u9650\u5236"
   },
   "subscriptions": {
     "title": "\u8ba2\u9605\u4e0e\u914d\u989d",

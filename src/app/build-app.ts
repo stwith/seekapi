@@ -28,6 +28,7 @@ import type { UsageEventRepository } from "../infra/db/repositories/usage-event-
 import type { AuditLogRepository } from "../infra/db/repositories/audit-log-repository.js";
 import type { HealthSnapshotRepository } from "../infra/db/repositories/health-snapshot-repository.js";
 import type { QuotaRepository } from "../infra/db/repositories/quota-repository.js";
+import type { CredentialCapacityRepository } from "../infra/db/repositories/credential-capacity-repository.js";
 
 export interface AppOptions {
   logger?: boolean | object;
@@ -45,6 +46,8 @@ export interface AppOptions {
   healthSnapshotRepository: HealthSnapshotRepository;
   /** Repository for project quota configuration. [Task 38] */
   quotaRepository?: QuotaRepository;
+  /** Repository for credential capacity configuration. [AC7] */
+  credentialCapacityRepository?: CredentialCapacityRepository;
   /** Hex-encoded 32-byte key for credential encryption. Required. */
   encryptionKey: string;
   /**
@@ -90,6 +93,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const credentialService = new CredentialService({
     credentialRepository,
     encryptionKey,
+    capacityRepository: opts.credentialCapacityRepository,
+    usageEventRepository,
   });
 
   // Provider registry [AC6]
@@ -110,7 +115,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     resolveHealthCredential: async (provider) => {
       if (!healthProbeProjectId) return undefined;
       try {
-        return await credentialService.resolve(healthProbeProjectId, provider);
+        const resolved = await credentialService.resolve(healthProbeProjectId, provider);
+        return resolved.secret;
       } catch {
         return undefined; // no credential for this provider — probe without
       }
@@ -124,8 +130,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   // Search service with routing-backed provider selection [AC2][AC6]
   const searchService = new SearchService({
     registry,
-    resolveCredential: (projectId, provider) =>
-      credentialService.resolve(projectId, provider),
+    resolveCredential: (projectId, provider) => credentialService.resolveWithCapacity(projectId, provider),
     health: healthService,
   });
 
@@ -152,6 +157,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       usageEventRepository,
       auditLogRepository,
       quotaRepository: opts.quotaRepository,
+      credentialCapacityRepository: opts.credentialCapacityRepository,
     });
     await registerAdminRoutes(app, {
       adminService,

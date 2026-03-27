@@ -160,6 +160,21 @@ export interface GlobalCredentialMeta {
   status: string;
 }
 
+export interface CredentialCapacity {
+  credentialId: string;
+  dailyLimit: number | null;
+  monthlyLimit: number | null;
+  currentDailyUsage?: number;
+  currentMonthlyUsage?: number;
+}
+
+export interface CredentialUsage {
+  credentialId: string;
+  totalRequests: number;
+  dailyRequests: number;
+  monthlyRequests: number;
+}
+
 export interface AuditEntry {
   projectId: string;
   actorType: string;
@@ -350,6 +365,21 @@ export const api = {
       method: "DELETE",
       adminKey,
     });
+  },
+
+  // --- Credential capacity/usage [AC7] ---
+  async getCredentialCapacity(adminKey: string, credentialId: string): Promise<CredentialCapacity> {
+    return request<CredentialCapacity>(`/v1/admin/credentials/${credentialId}/capacity`, { adminKey });
+  },
+  async updateCredentialCapacity(adminKey: string, credentialId: string, input: { dailyLimit?: number | null; monthlyLimit?: number | null }): Promise<CredentialCapacity> {
+    return request<CredentialCapacity>(`/v1/admin/credentials/${credentialId}/capacity`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+      adminKey,
+    });
+  },
+  async getCredentialUsage(adminKey: string, credentialId: string): Promise<CredentialUsage> {
+    return request<CredentialUsage>(`/v1/admin/credentials/${credentialId}/usage`, { adminKey });
   },
 
   // Canonical search (for flow runner)
